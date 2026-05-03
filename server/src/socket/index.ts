@@ -23,7 +23,7 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
       if (typeof callback === 'function') callback({ error: 'Room not found' });
       return;
     }
-    
+
     if (room.status !== 'lobby') {
       if (typeof callback === 'function') callback({ error: 'Game already started' });
       return;
@@ -32,7 +32,7 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
     socket.join(roomId);
     room.addPlayer(socket.id, playerName);
     userRooms.set(socket.id, roomId);
-    
+
     if (typeof callback === 'function') {
       callback({ success: true, roomId });
     }
@@ -43,6 +43,15 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
     if (room) {
       room.toggleReady(socket.id);
     }
+  });
+
+  // Only the host can trigger this — GameRoom.startGame() is guarded by canStart()
+  socket.on('game_start', ({ roomId }) => {
+    const room = gameManager.getRoom(roomId);
+    if (!room) return;
+    if (room.hostId !== socket.id) return; // must be host
+    if (!room.canStart()) return;          // all non-host players must be ready
+    room.startGame();
   });
 
   socket.on('submit_answer', ({ roomId, placedItems, timeRemaining }) => {
