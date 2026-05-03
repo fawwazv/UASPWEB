@@ -5,7 +5,6 @@ import { useGameLogic } from '../hooks/useGameLogic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameBoard } from '../components/GameBoard';
 import { Lobby } from '../components/Lobby';
-import { getSocket } from '../lib/socket';
 
 export default function Home() {
   const {
@@ -22,110 +21,238 @@ export default function Home() {
 
   const [joinId, setJoinId] = useState('');
   const [playerName, setPlayerName] = useState('');
+  const [activeTab, setActiveTab] = useState<'create' | 'join'>('create');
 
   const handleCreate = () => {
-    if (!playerName.trim()) return alert('Masukkan nama pemainmu terlebih dahulu');
+    if (!playerName.trim()) return alert('Masukkan nama pemainmu terlebih dahulu! 👋');
     createRoom((roomId) => {
       joinRoom(roomId, playerName);
     });
   };
 
   const handleJoin = () => {
-    if (!playerName.trim()) return alert('Masukkan nama pemainmu terlebih dahulu');
-    if (!joinId.trim()) return alert('Masukkan ID room terlebih dahulu');
+    if (!playerName.trim()) return alert('Masukkan nama pemainmu terlebih dahulu! 👋');
+    if (!joinId.trim()) return alert('Masukkan kode room terlebih dahulu! 🔑');
     joinRoom(joinId.trim().toUpperCase(), playerName);
   };
 
+  // ── Connecting Screen ────────────────────────────────────────────────────────
   if (!isSocketConnected) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <div className="text-electric-cyan animate-pulse text-2xl font-mono">Menghubungkan ke Server...</div>
-        <div className="text-white/20 font-mono text-sm">Menyinkronkan koneksi...</div>
+      <div className="flex flex-col items-center justify-center min-h-screen gap-6">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+          className="w-16 h-16 rounded-full border-4 border-transparent"
+          style={{
+            borderTopColor: 'var(--clr-purple)',
+            borderRightColor: 'var(--clr-cyan)',
+          }}
+        />
+        <div className="text-center space-y-1">
+          <p className="text-xl font-bold text-white">Menghubungkan ke server...</p>
+          <p className="text-sm font-semibold" style={{ color: 'var(--txt-muted)' }}>
+            Menyiapkan arena pertempuran 🧠
+          </p>
+        </div>
       </div>
     );
   }
 
-  const inGame = gameState.status === 'playing' || gameState.status === 'ended' || gameState.status === 'countdown';
+  const inLobby = !!gameState.roomId && (gameState.status === 'lobby' || gameState.status === 'countdown');
+  const inGame = gameState.status === 'playing' || gameState.status === 'ended';
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8">
       <AnimatePresence mode="wait">
-        {!gameState.roomId ? (
-          /* ── Home / Entry Screen ─────────────────────────── */
+
+        {/* ── Home Screen ─────────────────────────────────────────────────── */}
+        {!gameState.roomId && (
           <motion.div
             key="home"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="glass-panel p-8 max-w-md w-full space-y-6 rounded-xl"
+            initial={{ opacity: 0, y: 32, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.96 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+            className="glass-card rounded-3xl p-8 w-full max-w-md space-y-8"
           >
+            {/* Hero */}
             <div className="text-center space-y-3">
-              <div className="text-5xl mb-2">🧠</div>
-              <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-electric-cyan to-vivid-purple tracking-widest">
-                MEMORY HACK
-              </h1>
-              <p className="text-slate-400 text-sm font-mono">Protokol Sinkronisasi Memori</p>
-            </div>
-
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm text-center font-mono">
-                ⚠ {error}
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-mono text-electric-cyan mb-1 uppercase tracking-wider">
-                  Nama Pemain
-                </label>
-                <input
-                  id="operative-name"
-                  type="text"
-                  value={playerName}
-                  onChange={e => setPlayerName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleCreate()}
-                  className="w-full bg-slate-900/50 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-white/20 focus:outline-none focus:border-electric-cyan focus:ring-1 focus:ring-electric-cyan transition-all font-mono"
-                  placeholder="Masukkan nama panggilanmu"
-                />
-              </div>
-
-              <button
-                id="create-room-btn"
-                onClick={handleCreate}
-                className="w-full bg-vivid-purple/20 border border-vivid-purple/50 text-vivid-purple hover:bg-vivid-purple/30 hover:text-white px-4 py-3 rounded-lg font-bold tracking-widest transition-all uppercase hover:shadow-[0_0_20px_rgba(168,85,247,0.3)]"
+              <motion.div
+                initial={{ scale: 0, rotate: -20 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 18, delay: 0.1 }}
+                className="text-7xl leading-none select-none"
               >
-                + Buat Room
-              </button>
-
-              <div className="relative flex items-center py-1">
-                <div className="flex-grow border-t border-white/10" />
-                <span className="flex-shrink-0 mx-4 text-white/30 text-xs uppercase font-mono">Atau Gabung</span>
-                <div className="flex-grow border-t border-white/10" />
-              </div>
-
-              <div className="flex gap-2">
-                <input
-                  id="room-id-input"
-                  type="text"
-                  value={joinId}
-                  onChange={e => setJoinId(e.target.value.toUpperCase())}
-                  onKeyDown={e => e.key === 'Enter' && handleJoin()}
-                  className="flex-1 bg-slate-900/50 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-white/20 focus:outline-none focus:border-electric-cyan transition-all font-mono uppercase tracking-widest"
-                  placeholder="ID ROOM"
-                  maxLength={8}
-                />
-                <button
-                  id="join-room-btn"
-                  onClick={handleJoin}
-                  className="bg-electric-cyan/20 border border-electric-cyan/50 text-electric-cyan hover:bg-electric-cyan/30 hover:text-white px-6 py-2 rounded-lg font-bold tracking-widest transition-all uppercase hover:shadow-[0_0_15px_rgba(6,182,212,0.3)]"
-                >
-                  Gabung
-                </button>
-              </div>
+                🧠
+              </motion.div>
+              <h1
+                className="text-5xl font-black tracking-tight leading-none"
+                style={{
+                  background: 'linear-gradient(135deg, #a78bfa, #06b6d4, #ec4899)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
+                Memory Hack
+              </h1>
+              <p className="font-bold text-sm" style={{ color: 'var(--txt-muted)' }}>
+                Siapa yang paling kuat ingatannya? 💪
+              </p>
             </div>
+
+            {/* Error */}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="rounded-2xl p-3 text-center text-sm font-bold"
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1.5px solid rgba(239, 68, 68, 0.35)',
+                    color: '#fca5a5',
+                  }}
+                >
+                  ⚠️ {error}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Player Name Input */}
+            <div className="space-y-2">
+              <label
+                htmlFor="player-name"
+                className="block text-xs font-black uppercase tracking-widest"
+                style={{ color: 'var(--clr-cyan-lt)' }}
+              >
+                Nama Pemain
+              </label>
+              <input
+                id="player-name"
+                type="text"
+                value={playerName}
+                onChange={e => setPlayerName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && (activeTab === 'create' ? handleCreate() : handleJoin())}
+                className="w-full rounded-2xl px-5 py-3.5 text-base font-bold text-white outline-none transition-all"
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '2px solid rgba(255,255,255,0.1)',
+                  caretColor: 'var(--clr-purple-lt)',
+                }}
+                onFocus={e => {
+                  e.target.style.borderColor = 'var(--clr-purple-lt)';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(139,92,246,0.2)';
+                }}
+                onBlur={e => {
+                  e.target.style.borderColor = 'rgba(255,255,255,0.1)';
+                  e.target.style.boxShadow = 'none';
+                }}
+                placeholder="Masukkan nama panggilanmu..."
+                maxLength={20}
+              />
+            </div>
+
+            {/* Tab Switcher */}
+            <div
+              className="flex rounded-2xl p-1"
+              style={{ background: 'rgba(255,255,255,0.05)' }}
+            >
+              {(['create', 'join'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-black transition-all"
+                  style={
+                    activeTab === tab
+                      ? {
+                          background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                          color: '#fff',
+                          boxShadow: '0 4px 12px rgba(139,92,246,0.4)',
+                        }
+                      : { color: 'var(--txt-muted)' }
+                  }
+                >
+                  {tab === 'create' ? '✨ Buat Room' : '🔑 Gabung Room'}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Content */}
+            <AnimatePresence mode="wait">
+              {activeTab === 'create' ? (
+                <motion.div
+                  key="create"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <button
+                    id="create-room-btn"
+                    onClick={handleCreate}
+                    className="btn-3d btn-purple w-full py-4 text-base"
+                  >
+                    🚀 Buat Room Baru
+                  </button>
+                  <p className="text-center text-xs font-semibold mt-3" style={{ color: 'var(--txt-faint)' }}>
+                    Kamu akan menjadi host dan mengundang teman
+                  </p>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="join"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.15 }}
+                  className="space-y-3"
+                >
+                  <input
+                    id="room-code-input"
+                    type="text"
+                    value={joinId}
+                    onChange={e => setJoinId(e.target.value.toUpperCase())}
+                    onKeyDown={e => e.key === 'Enter' && handleJoin()}
+                    className="w-full rounded-2xl px-5 py-3.5 text-center text-2xl font-black tracking-[0.3em] uppercase text-white outline-none transition-all"
+                    style={{
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '2px solid rgba(255,255,255,0.1)',
+                      caretColor: 'var(--clr-cyan-lt)',
+                    }}
+                    onFocus={e => {
+                      e.target.style.borderColor = 'var(--clr-cyan-lt)';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(6,182,212,0.2)';
+                    }}
+                    onBlur={e => {
+                      e.target.style.borderColor = 'rgba(255,255,255,0.1)';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                    placeholder="XXXXXX"
+                    maxLength={8}
+                  />
+                  <button
+                    id="join-room-btn"
+                    onClick={handleJoin}
+                    className="btn-3d btn-cyan w-full py-4 text-base"
+                  >
+                    ⚡ Gabung Sekarang
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Footer */}
+            <p className="text-center text-xs font-semibold" style={{ color: 'var(--txt-faint)' }}>
+              Hafalkan posisi emoji · Drag & Drop · Menangkan skor tertinggi 🏆
+            </p>
           </motion.div>
-        ) : gameState.status === 'lobby' || gameState.status === 'countdown' ? (
-          /* ── Lobby ──────────────────────────────────────── */
+        )}
+
+        {/* ── Lobby ─────────────────────────────────────────────────────────── */}
+        {inLobby && (
           <Lobby
             key="lobby"
             gameState={gameState}
@@ -133,14 +260,17 @@ export default function Home() {
             startGame={startGame}
             leaveRoom={leaveRoom}
           />
-        ) : (
-          /* ── Game Board ─────────────────────────────────── */
+        )}
+
+        {/* ── Game Board ────────────────────────────────────────────────────── */}
+        {inGame && (
           <GameBoard
             key="game"
             gameState={gameState}
             submitAnswer={submitAnswer}
           />
         )}
+
       </AnimatePresence>
     </main>
   );

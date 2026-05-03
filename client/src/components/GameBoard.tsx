@@ -2,164 +2,119 @@
 
 import { GameState, PlacedItem } from '../hooks/useGameLogic';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect, useRef } from 'react';
-import { DndContext, useDraggable, useDroppable, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  DndContext, useDraggable, useDroppable,
+  DragEndEvent, DragStartEvent,
+  PointerSensor, useSensor, useSensors,
+} from '@dnd-kit/core';
 import { getSocket } from '../lib/socket';
 
-// ─── Emoji Display ─────────────────────────────────────────────────────────────
-
+// ─── Emoji Display ──────────────────────────────────────────────────────────
 const EmojiDisplay = ({ emoji, size = 'md' }: { emoji: string; size?: 'sm' | 'md' | 'lg' }) => {
-  const sizeClass = size === 'lg' ? 'text-4xl' : size === 'md' ? 'text-3xl' : 'text-2xl';
+  const sz = size === 'lg' ? 'text-4xl' : size === 'md' ? 'text-3xl' : 'text-xl';
   return (
-    <span
-      className={`${sizeClass} select-none leading-none`}
-      style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif' }}
-      role="img"
-    >
+    <span className={`${sz} select-none leading-none`}
+      style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif' }}>
       {emoji}
     </span>
   );
 };
 
-// ─── Droppable Cell ─────────────────────────────────────────────────────────────
-
-const DroppableCell = ({ id, children }: { id: string; children: React.ReactNode }) => {
-  const { setNodeRef, isOver } = useDroppable({ id });
-  return (
-    <div
-      ref={setNodeRef}
-      className={`w-16 h-16 rounded-xl border-2 transition-all flex items-center justify-center
-        ${isOver ? 'border-vivid-purple bg-vivid-purple/20 scale-105' : 'border-white/10 bg-slate-900/50'}`}
-    >
-      {children}
-    </div>
-  );
-};
-
-// ─── Droppable Pool ─────────────────────────────────────────────────────────────
-
-const DroppablePool = ({ id, children }: { id: string; children: React.ReactNode }) => {
-  const { setNodeRef, isOver } = useDroppable({ id });
-  return (
-    <div
-      ref={setNodeRef}
-      className={`p-4 rounded-xl border-2 transition-all min-h-[100px]
-        ${isOver ? 'border-vivid-purple bg-vivid-purple/10' : 'border-white/5 bg-slate-900/30'}`}
-    >
-      {children}
-    </div>
-  );
-};
-
-// ─── Draggable Item ─────────────────────────────────────────────────────────────
-
-const DraggableItem = ({ id, iconType }: { id: string; iconType: string }) => {
+// ─── Draggable Item ─────────────────────────────────────────────────────────
+const DraggableItem = ({
+  id, iconType, feedbackState,
+}: { id: string; iconType: string; feedbackState?: 'correct' | 'wrong' | null }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
 
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 50 }
-    : undefined;
+  const mergedStyle: React.CSSProperties = {
+    ...(transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0) scale(1.12) rotate(4deg)`, zIndex: 50 } : {}),
+    ...(feedbackState === 'correct' ? { border: '2px solid #10b981', boxShadow: '0 0 18px rgba(16,185,129,0.7), 0 4px 0 #064e3b', background: 'rgba(16,185,129,0.2)' } : {}),
+    ...(feedbackState === 'wrong'   ? { border: '2px solid #ef4444', boxShadow: '0 0 16px rgba(239,68,68,0.6)' } : {}),
+    ...(isDragging ? { opacity: 0.85 } : {}),
+  };
 
+  return (
+    <motion.div
+      ref={setNodeRef}
+      style={mergedStyle}
+      {...listeners}
+      {...attributes}
+      layout
+      animate={feedbackState === 'wrong' ? { x: [-6, 6, -5, 5, -3, 3, 0] } : {}}
+      transition={feedbackState === 'wrong' ? { duration: 0.45 } : { layout: { type: 'spring', stiffness: 400, damping: 30 } }}
+      className="drag-chip w-16 h-16 flex items-center justify-center touch-none"
+    >
+      <EmojiDisplay emoji={iconType} size="md" />
+    </motion.div>
+  );
+};
+
+// ─── Droppable Cell ─────────────────────────────────────────────────────────
+const DroppableCell = ({ id, children, size }: { id: string; children: React.ReactNode; size: number }) => {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  const cellPx = size <= 2 ? 80 : size <= 3 ? 72 : size <= 4 ? 64 : 56;
   return (
     <div
       ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      className={`w-16 h-16 rounded-lg flex items-center justify-center cursor-grab active:cursor-grabbing
-        ${isDragging
-          ? 'shadow-2xl shadow-vivid-purple/50 bg-vivid-purple/40 border-vivid-purple scale-110 opacity-90'
-          : 'bg-slate-800 border-white/20 hover:border-vivid-purple/50 hover:bg-slate-700'
-        } border-2`}
+      className="drop-cell flex items-center justify-center transition-all"
+      style={{
+        width: cellPx, height: cellPx,
+        ...(isOver ? { borderColor: '#a78bfa', borderStyle: 'solid', background: 'rgba(139,92,246,0.18)', boxShadow: 'inset 0 0 16px rgba(139,92,246,0.25)' } : {}),
+      }}
     >
-      <EmojiDisplay emoji={iconType} size="md" />
+      {children}
     </div>
   );
 };
 
-// ─── Animated Leaderboard ──────────────────────────────────────────────────────
-
-interface LeaderboardProps {
-  players: { id: string; name: string; score: number }[];
-  myId: string;
-}
-
-const AnimatedLeaderboard = ({ players, myId }: LeaderboardProps) => {
-  const sorted = [...players].sort((a, b) => b.score - a.score);
-  const prevScoresRef = useRef<Record<string, number>>({});
-  const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    const newFlash = new Set<string>();
-    sorted.forEach(p => {
-      const prev = prevScoresRef.current[p.id];
-      if (prev !== undefined && p.score > prev) {
-        newFlash.add(p.id);
-      }
-    });
-    if (newFlash.size > 0) {
-      setFlashIds(newFlash);
-      const timer = setTimeout(() => setFlashIds(new Set()), 800);
-      return () => clearTimeout(timer);
-    }
-    // Update reference scores
-    const next: Record<string, number> = {};
-    sorted.forEach(p => { next[p.id] = p.score; });
-    prevScoresRef.current = next;
-  }, [players]);
-
+// ─── Droppable Pool ─────────────────────────────────────────────────────────
+const DroppablePool = ({ children }: { children: React.ReactNode }) => {
+  const { setNodeRef, isOver } = useDroppable({ id: 'pool' });
   return (
-    <div className="glass-panel p-6 rounded-xl h-fit sticky top-4">
-      <h3 className="text-xl font-bold text-white mb-6 tracking-widest border-b border-white/10 pb-4">
-        📊 PAPAN SKOR
-      </h3>
-      <motion.div layout className="space-y-3">
-        <AnimatePresence initial={false}>
-          {sorted.map((player, idx) => {
-            const isSelf = player.id === myId;
-            const isFlashing = flashIds.has(player.id);
-            const rankColors = ['text-yellow-400', 'text-slate-300', 'text-amber-600'];
+    <div ref={setNodeRef} className="flex flex-wrap gap-3 min-h-[76px] p-2 rounded-2xl transition-all"
+      style={isOver ? { background: 'rgba(139,92,246,0.08)', outline: '2px dashed rgba(139,92,246,0.4)' } : {}}>
+      {children}
+    </div>
+  );
+};
 
+// ─── Leaderboard ────────────────────────────────────────────────────────────
+const Leaderboard = ({ players, myId }: { players: { id: string; name: string; score: number }[]; myId: string }) => {
+  const sorted = [...players].sort((a, b) => b.score - a.score);
+  const medals = ['🥇', '🥈', '🥉'];
+  return (
+    <div className="glass-card rounded-3xl p-5 h-fit sticky top-4 space-y-4">
+      <h3 className="text-base font-black text-white">📊 Papan Skor</h3>
+      <motion.div layout className="space-y-2">
+        <AnimatePresence initial={false}>
+          {sorted.map((p, i) => {
+            const isSelf = p.id === myId;
             return (
               <motion.div
-                key={player.id}
-                layout
-                layoutId={`lb-${player.id}`}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{
-                  opacity: 1,
-                  x: 0,
-                  scale: isFlashing ? [1, 1.04, 1] : 1,
-                }}
-                exit={{ opacity: 0, x: -20 }}
+                key={p.id} layout layoutId={`lb-${p.id}`}
+                initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
                 transition={{ layout: { type: 'spring', stiffness: 400, damping: 30 } }}
-                className={`flex justify-between items-center p-3 rounded-lg border transition-all ${
-                  isSelf
-                    ? 'bg-electric-cyan/10 border-electric-cyan/40 shadow-[0_0_14px_rgba(6,182,212,0.35)]'
-                    : 'bg-slate-900/50 border-white/5'
-                } ${isFlashing ? 'shadow-[0_0_20px_rgba(168,85,247,0.5)]' : ''}`}
+                className="flex items-center justify-between rounded-xl px-3 py-2.5"
+                style={{
+                  background: isSelf ? 'rgba(139,92,246,0.18)' : 'rgba(255,255,255,0.04)',
+                  border: `1.5px solid ${isSelf ? 'rgba(139,92,246,0.5)' : 'rgba(255,255,255,0.07)'}`,
+                }}
               >
-                <div className="flex items-center gap-3">
-                  <span className={`text-sm font-bold w-6 text-center ${rankColors[idx] ?? 'text-slate-500'}`}>
-                    {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
-                  </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm w-5 text-center">{medals[i] ?? `#${i + 1}`}</span>
                   <div>
-                    <span className={`font-medium text-sm ${isSelf ? 'text-electric-cyan' : 'text-white'}`}>
-                      {player.name}
-                    </span>
-                    {isSelf && (
-                      <span className="block text-[9px] font-mono text-electric-cyan/50 uppercase tracking-wider">Kamu</span>
-                    )}
+                    <p className="text-sm font-black text-white leading-none">{p.name}</p>
+                    {isSelf && <p className="text-[10px] font-bold mt-0.5" style={{ color: '#a78bfa' }}>Kamu</p>}
                   </div>
                 </div>
                 <motion.span
-                  key={`score-${player.id}-${player.score}`}
-                  initial={{ scale: 1.4, color: '#a855f7' }}
-                  animate={{ scale: 1, color: isSelf ? '#06b6d4' : '#a855f7' }}
-                  transition={{ duration: 0.4 }}
-                  className="font-mono font-bold text-sm"
+                  key={p.score}
+                  initial={{ scale: 1.4, color: '#a78bfa' }}
+                  animate={{ scale: 1, color: isSelf ? '#a78bfa' : '#67e8f9' }}
+                  className="text-sm font-black tabular-nums"
                 >
-                  {player.score.toLocaleString()}
+                  {p.score.toLocaleString()}
                 </motion.span>
               </motion.div>
             );
@@ -170,35 +125,27 @@ const AnimatedLeaderboard = ({ players, myId }: LeaderboardProps) => {
   );
 };
 
-// ─── Timer Display ──────────────────────────────────────────────────────────────
-
-const TimerDisplay = ({ seconds, isAnswer }: { seconds: number; isAnswer: boolean }) => {
-  const safeSeconds = Math.max(0, seconds); // clamp to prevent -1:-1 display
-  const isWarning = safeSeconds <= 10;
-  const isCritical = safeSeconds <= 5;
-  const mins = Math.floor(safeSeconds / 60);
-  const secs = Math.floor(safeSeconds % 60);
-  const formatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-
+// ─── Timer ──────────────────────────────────────────────────────────────────
+const Timer = ({ seconds, isAnswer }: { seconds: number; isAnswer: boolean }) => {
+  const s = Math.max(0, seconds);
+  const isCritical = s <= 5;
+  const isWarning = s <= 10;
+  const mins = Math.floor(s / 60).toString().padStart(2, '0');
+  const secs = Math.floor(s % 60).toString().padStart(2, '0');
   return (
     <motion.div
-      animate={
-        isCritical
-          ? { x: [-4, 4, -4, 4, 0], color: '#ef4444' }
-          : isWarning
-          ? { color: '#f97316' }
-          : { color: '#ffffff' }
-      }
-      transition={{ duration: 0.4, repeat: isCritical ? Infinity : 0 }}
-      className="text-5xl font-mono font-bold tabular-nums"
+      animate={isCritical
+        ? { scale: [1, 1.08, 1], color: '#ef4444' }
+        : isWarning ? { color: '#f97316' } : { color: '#ffffff' }}
+      transition={{ duration: 0.5, repeat: isCritical ? Infinity : 0 }}
+      className="text-4xl font-black tabular-nums"
     >
-      {formatted}
+      {mins}:{secs}
     </motion.div>
   );
 };
 
-// ─── Main GameBoard ─────────────────────────────────────────────────────────────
-
+// ─── Main GameBoard ──────────────────────────────────────────────────────────
 interface GameBoardProps {
   gameState: GameState;
   submitAnswer: (items: PlacedItem[], timeRemaining: number) => void;
@@ -211,54 +158,93 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
   const [placedItems, setPlacedItems] = useState<PlacedItem[]>([]);
   const [poolItems, setPoolItems] = useState<{ id: string; iconType: string }[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, 'correct' | 'wrong'>>({});
+  const [showLevelComplete, setShowLevelComplete] = useState(false);
+  const [levelCompleteNum, setLevelCompleteNum] = useState(0);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 1 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 1 } }));
 
-  // Re-init pool when entering answer phase or new level
+  // Init pool when entering answer phase or reset on memorize
   useEffect(() => {
     if (gameState.phase === 'answer' && poolItems.length === 0 && placedItems.length === 0) {
       const shuffled = [...gameState.itemsToMemorize].sort(() => Math.random() - 0.5);
-      setPoolItems(shuffled.map(item => ({ id: item.id, iconType: item.iconType })));
+      setPoolItems(shuffled.map(i => ({ id: i.id, iconType: i.iconType })));
       setSubmitted(false);
+      setFeedbackMap({});
     } else if (gameState.phase === 'memorize') {
       setPlacedItems([]);
       setPoolItems([]);
       setSubmitted(false);
+      setFeedbackMap({});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState.phase, gameState.currentLevel]);
 
-  // Auto-submit when time runs out
+  // Handle answer_result feedback from server
+  useEffect(() => {
+    const socket = getSocket();
+    const onResult = (data: { correctCount: number; totalCells: number }) => {
+      // Build feedback map: compare placedItems vs itemsToMemorize
+      const newMap: Record<string, 'correct' | 'wrong'> = {};
+      placedItems.forEach(item => {
+        const correct = gameState.itemsToMemorize.some(
+          m => m.iconType === item.iconType && m.row === item.row && m.col === item.col,
+        );
+        newMap[item.id] = correct ? 'correct' : 'wrong';
+      });
+      setFeedbackMap(newMap);
+    };
+    socket.on('answer_result', onResult);
+    return () => { socket.off('answer_result', onResult); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placedItems, gameState.itemsToMemorize]);
+
+  // Handle level_complete event
+  useEffect(() => {
+    const socket = getSocket();
+    const onLevelComplete = (data: { level: number }) => {
+      setLevelCompleteNum(data.level);
+      setShowLevelComplete(true);
+      setTimeout(() => setShowLevelComplete(false), 2500);
+    };
+    socket.on('level_complete', onLevelComplete);
+    return () => { socket.off('level_complete', onLevelComplete); };
+  }, []);
+
+  // Auto-submit on timer expiry
   useEffect(() => {
     if (gameState.phase === 'answer' && gameState.timeRemaining <= 0 && !submitted) {
       setSubmitted(true);
       submitAnswer(placedItems, 0);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState.timeRemaining, gameState.phase]);
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(event.active.id as string);
+  };
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveDragId(null);
     const { active, over } = event;
     if (!over) return;
-
     const itemId = active.id as string;
-    const droppableId = over.id as string;
+    const target = over.id as string;
 
-    if (droppableId === 'pool') {
+    if (target === 'pool') {
       const idx = placedItems.findIndex(i => i.id === itemId);
       if (idx > -1) {
         const item = placedItems[idx];
         setPlacedItems(prev => prev.filter(i => i.id !== itemId));
         setPoolItems(prev => [...prev, { id: item.id, iconType: item.iconType }]);
       }
-    } else if (droppableId.startsWith('cell-')) {
-      const [, r, c] = droppableId.split('-');
-      const row = parseInt(r);
-      const col = parseInt(c);
+      return;
+    }
 
-      const existingIdx = placedItems.findIndex(i => i.row === row && i.col === col);
-
+    if (target.startsWith('cell-')) {
+      const [, r, c] = target.split('-');
+      const row = parseInt(r), col = parseInt(c);
       let itemToPlace: { id: string; iconType: string } | undefined;
 
       const poolIdx = poolItems.findIndex(i => i.id === itemId);
@@ -274,15 +260,16 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
       }
 
       if (itemToPlace) {
+        const existingIdx = placedItems.findIndex(i => i.row === row && i.col === col && i.id !== itemId);
         if (existingIdx > -1) {
-          const existing = placedItems[existingIdx];
-          setPoolItems(prev => [...prev, { id: existing.id, iconType: existing.iconType }]);
+          const displaced = placedItems[existingIdx];
+          setPoolItems(prev => [...prev, { id: displaced.id, iconType: displaced.iconType }]);
           setPlacedItems(prev => prev.filter((_, i) => i !== existingIdx));
         }
         setPlacedItems(prev => [...prev, { ...itemToPlace!, row, col }]);
       }
     }
-  };
+  }, [placedItems, poolItems]);
 
   const handleSubmit = () => {
     if (gameState.phase === 'answer' && !submitted) {
@@ -291,165 +278,199 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
     }
   };
 
-  // ── Game Over Screen ──────────────────────────────────────────────────────────
+  // ── Game Over ──────────────────────────────────────────────────────────────
   if (gameState.status === 'ended') {
+    const sorted = [...gameState.finalLeaderboard].sort((a, b) => b.score - a.score);
+    const winner = sorted[0];
+    const isWinner = winner?.id === myId;
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
+        initial={{ opacity: 0, scale: 0.85 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="glass-panel p-8 max-w-2xl w-full text-center space-y-6 rounded-xl"
+        transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+        className="glass-card rounded-3xl p-8 max-w-lg w-full text-center space-y-6"
       >
-        <div>
-          <h2 className="text-4xl font-bold text-electric-cyan tracking-widest">SIMULASI SELESAI</h2>
-          <p className="text-white/40 font-mono text-sm mt-2">Peringkat Akhir</p>
+        <div className="space-y-2">
+          <motion.div
+            initial={{ scale: 0, rotate: -20 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 16, delay: 0.1 }}
+            className="text-7xl"
+          >
+            {isWinner ? '🏆' : '🎮'}
+          </motion.div>
+          <h2 className="text-4xl font-black text-white">
+            {isWinner ? 'Kamu Menang!' : 'Game Selesai!'}
+          </h2>
+          <p className="text-sm font-bold" style={{ color: 'var(--txt-muted)' }}>Peringkat Akhir</p>
         </div>
-        <div className="space-y-3">
-          {gameState.finalLeaderboard.map((p, i) => (
-            <motion.div
-              key={p.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.1 }}
-              className={`flex justify-between items-center p-4 rounded-xl border ${
-                i === 0
-                  ? 'bg-yellow-400/10 border-yellow-400/40 shadow-[0_0_20px_rgba(250,204,21,0.2)]'
-                  : i === 1
-                  ? 'bg-slate-300/10 border-slate-300/30'
-                  : i === 2
-                  ? 'bg-amber-600/10 border-amber-600/30'
-                  : 'bg-slate-900/50 border-white/10'
-              }`}
-            >
-              <div className="flex items-center gap-4">
-                <span className="text-2xl">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}</span>
-                <span className="text-xl text-white font-semibold">{p.name}</span>
-                {p.id === myId && (
-                  <span className="text-[10px] font-mono text-electric-cyan border border-electric-cyan/30 px-2 py-0.5 rounded-full">KAMU</span>
-                )}
-              </div>
-              <span className="text-2xl font-mono font-bold text-vivid-purple">{p.score.toLocaleString()}</span>
-            </motion.div>
-          ))}
+
+        <div className="space-y-2">
+          {sorted.map((p, i) => {
+            const medals = ['🥇', '🥈', '🥉'];
+            const isSelf = p.id === myId;
+            return (
+              <motion.div
+                key={p.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.08 }}
+                className="flex items-center justify-between rounded-2xl px-4 py-3"
+                style={{
+                  background: i === 0 ? 'rgba(245,158,11,0.15)' : isSelf ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: `1.5px solid ${i === 0 ? 'rgba(245,158,11,0.4)' : isSelf ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{medals[i] ?? `#${i + 1}`}</span>
+                  <span className="font-black text-white">{p.name}</span>
+                  {isSelf && <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(139,92,246,0.25)', color: '#a78bfa' }}>Kamu</span>}
+                </div>
+                <span className="font-black text-lg tabular-nums" style={{ color: i === 0 ? '#fcd34d' : '#a78bfa' }}>
+                  {p.score.toLocaleString()}
+                </span>
+              </motion.div>
+            );
+          })}
         </div>
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-4 bg-white/10 hover:bg-white/20 px-8 py-3 rounded-lg text-white font-bold uppercase tracking-widest transition-all hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]"
-        >
-          Kembali ke Lobby
+
+        <button onClick={() => window.location.reload()} className="btn-3d btn-purple w-full py-4 text-base">
+          🔁 Main Lagi
         </button>
       </motion.div>
     );
   }
 
-  // ── Game Board ────────────────────────────────────────────────────────────────
+  // ── Playing ────────────────────────────────────────────────────────────────
   const gridCols = `repeat(${gameState.gridSize}, minmax(0, 1fr))`;
 
   return (
-    <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
-      {/* Left column: grid + pool */}
-      <div className="space-y-6">
-        {/* Level & timer header */}
-        <div className="glass-panel p-4 rounded-xl flex justify-between items-center">
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-white tracking-widest">LEVEL {gameState.currentLevel}</h2>
+    <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-5">
+
+      {/* Level-Complete toast */}
+      <AnimatePresence>
+        {showLevelComplete && (
+          <motion.div
+            initial={{ opacity: 0, y: -40, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-2xl font-black text-base text-white"
+            style={{ background: 'linear-gradient(135deg,#8b5cf6,#06b6d4)', boxShadow: '0 8px 30px rgba(139,92,246,0.5)' }}
+          >
+            ✅ Level {levelCompleteNum} Selesai! Level {levelCompleteNum + 1} dimulai...
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="space-y-4">
+        {/* Header: level + phase + timer */}
+        <div className="glass-card rounded-3xl px-6 py-4 flex justify-between items-center">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="text-2xl font-black text-white">Level {gameState.currentLevel}</h2>
               <span
-                className={`text-xs font-mono uppercase px-3 py-1 rounded-full border ${
-                  isMemorize
-                    ? 'text-electric-cyan border-electric-cyan/40 bg-electric-cyan/10'
-                    : 'text-vivid-purple border-vivid-purple/40 bg-vivid-purple/10'
-                }`}
+                className="text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full"
+                style={isMemorize
+                  ? { background: 'rgba(6,182,212,0.2)', border: '1.5px solid rgba(6,182,212,0.4)', color: '#67e8f9' }
+                  : { background: 'rgba(139,92,246,0.2)', border: '1.5px solid rgba(139,92,246,0.4)', color: '#a78bfa' }}
               >
                 {isMemorize ? '👁 Hafalkan' : '🧩 Jawab'}
               </span>
             </div>
-            <p className="text-white/40 font-mono text-xs mt-1">
-              Grid: {gameState.gridSize}×{gameState.gridSize} — {gameState.gridSize * gameState.gridSize} emoji
+            <p className="text-xs font-bold" style={{ color: 'var(--txt-faint)' }}>
+              Grid {gameState.gridSize}×{gameState.gridSize} · {gameState.gridSize * gameState.gridSize} emoji
             </p>
           </div>
-          <TimerDisplay seconds={gameState.timeRemaining} isAnswer={!isMemorize} />
+          <Timer seconds={gameState.timeRemaining} isAnswer={!isMemorize} />
         </div>
 
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           {/* Grid */}
-          <div className="glass-panel p-6 rounded-xl flex items-center justify-center">
+          <div className="glass-card rounded-3xl p-6 flex items-center justify-center">
             <div className="grid gap-3" style={{ gridTemplateColumns: gridCols }}>
               {Array.from({ length: gameState.gridSize }).map((_, r) =>
                 Array.from({ length: gameState.gridSize }).map((_, c) => {
                   const cellId = `cell-${r}-${c}`;
-                  const memoryItem = isMemorize
-                    ? gameState.itemsToMemorize.find(i => i.row === r && i.col === c)
-                    : null;
-                  const placedItem = !isMemorize
-                    ? placedItems.find(i => i.row === r && i.col === c)
-                    : null;
-
+                  const memItem = isMemorize ? gameState.itemsToMemorize.find(i => i.row === r && i.col === c) : null;
+                  const placedItem = !isMemorize ? placedItems.find(i => i.row === r && i.col === c) : null;
                   return (
-                    <DroppableCell key={cellId} id={cellId}>
-                      {isMemorize && memoryItem && (
+                    <DroppableCell key={cellId} id={cellId} size={gameState.gridSize}>
+                      {isMemorize && memItem && (
                         <motion.div
-                          initial={{ scale: 0, rotate: -10 }}
+                          initial={{ scale: 0, rotate: -12 }}
                           animate={{ scale: 1, rotate: 0 }}
                           transition={{ type: 'spring', delay: (r * gameState.gridSize + c) * 0.04 }}
-                          className="w-14 h-14 bg-electric-cyan/10 border-2 border-electric-cyan/50 rounded-xl flex items-center justify-center"
+                          className="emoji-card flex items-center justify-center"
+                          style={{ width: gameState.gridSize <= 2 ? 72 : gameState.gridSize <= 3 ? 64 : gameState.gridSize <= 4 ? 56 : 48, height: gameState.gridSize <= 2 ? 72 : gameState.gridSize <= 3 ? 64 : gameState.gridSize <= 4 ? 56 : 48 }}
                         >
-                          <EmojiDisplay emoji={memoryItem.iconType} size="lg" />
+                          <EmojiDisplay emoji={memItem.iconType} size={gameState.gridSize <= 3 ? 'lg' : 'md'} />
                         </motion.div>
                       )}
                       {!isMemorize && placedItem && (
-                        <DraggableItem id={placedItem.id} iconType={placedItem.iconType} />
+                        <DraggableItem
+                          id={placedItem.id}
+                          iconType={placedItem.iconType}
+                          feedbackState={feedbackMap[placedItem.id] ?? null}
+                        />
                       )}
                     </DroppableCell>
                   );
-                }),
+                })
               )}
             </div>
           </div>
 
-          {/* Pool (answer phase only) */}
+          {/* Pool — answer phase only */}
           <AnimatePresence>
             {!isMemorize && (
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                className="glass-panel p-6 rounded-xl"
+                exit={{ opacity: 0, y: 16 }}
+                className="glass-card rounded-3xl p-5 space-y-4"
               >
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="text-white/50 text-sm font-mono uppercase tracking-wider">Pool Pilihan</h3>
-                    <p className="text-white/20 text-xs font-mono mt-0.5">
+                    <h3 className="text-sm font-black text-white">Pool Pilihan</h3>
+                    <p className="text-xs font-bold mt-0.5" style={{ color: 'var(--txt-faint)' }}>
                       {poolItems.length} tersisa · {placedItems.length} ditempatkan
                     </p>
                   </div>
-                  <button
+                  <motion.button
+                    id="submit-answer-btn"
                     onClick={handleSubmit}
                     disabled={submitted}
-                    className={`px-6 py-2 rounded-lg font-bold uppercase tracking-wider transition-all ${
-                      submitted
-                        ? 'bg-white/5 border border-white/10 text-white/30 cursor-not-allowed'
-                        : 'bg-vivid-purple/20 hover:bg-vivid-purple border border-vivid-purple text-white hover:shadow-[0_0_15px_rgba(168,85,247,0.4)]'
-                    }`}
+                    whileTap={!submitted ? { scale: 0.96 } : {}}
+                    className={`btn-3d px-5 py-2.5 text-sm ${submitted ? '' : 'btn-purple'}`}
+                    style={submitted ? { background: 'rgba(255,255,255,0.05)', color: 'var(--txt-faint)', borderRadius: 12, fontWeight: 800, border: '1.5px solid rgba(255,255,255,0.08)', cursor: 'not-allowed' } : {}}
                   >
-                    {submitted ? '✓ Dikirim' : 'Kirim Jawaban'}
-                  </button>
+                    {submitted ? '✓ Dikirim!' : '🚀 Kirim Jawaban'}
+                  </motion.button>
                 </div>
-                <DroppablePool id="pool">
-                  <div className="flex flex-wrap gap-3 min-h-[80px]">
-                    {poolItems.map(item => (
-                      <DraggableItem key={item.id} id={item.id} iconType={item.iconType} />
-                    ))}
-                    {poolItems.length === 0 && placedItems.length === 0 && (
-                      <div className="w-full text-center text-white/20 py-4 font-mono text-sm">
-                        Menunggu pool...
-                      </div>
-                    )}
-                    {poolItems.length === 0 && placedItems.length > 0 && (
-                      <div className="w-full text-center text-electric-cyan/40 py-4 font-mono text-sm">
-                        Semua sudah ditempatkan — kirim jawaban!
-                      </div>
-                    )}
-                  </div>
+
+                <DroppablePool>
+                  {poolItems.map(item => (
+                    <motion.div key={item.id} layout
+                      initial={{ scale: 0.7, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.7, opacity: 0 }}
+                      transition={{ type: 'spring', stiffness: 350, damping: 25 }}>
+                      <DraggableItem id={item.id} iconType={item.iconType} feedbackState={null} />
+                    </motion.div>
+                  ))}
+                  {poolItems.length === 0 && placedItems.length === 0 && (
+                    <p className="w-full text-center text-sm font-bold py-4" style={{ color: 'var(--txt-faint)' }}>Menunggu pool...</p>
+                  )}
+                  {poolItems.length === 0 && placedItems.length > 0 && (
+                    <motion.p
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                      className="w-full text-center text-sm font-bold py-4"
+                      style={{ color: '#6ee7b7' }}
+                    >
+                      🎉 Semua sudah ditempatkan — kirim jawaban!
+                    </motion.p>
+                  )}
                 </DroppablePool>
               </motion.div>
             )}
@@ -457,8 +478,8 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
         </DndContext>
       </div>
 
-      {/* Right column: leaderboard */}
-      <AnimatedLeaderboard players={gameState.players} myId={myId} />
+      {/* Leaderboard */}
+      <Leaderboard players={gameState.players} myId={myId} />
     </div>
   );
 };

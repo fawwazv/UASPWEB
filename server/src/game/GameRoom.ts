@@ -28,14 +28,20 @@ const EMOJI_POOL = [
 
 /** Calculate memorize phase duration for a given level */
 export function getMemorizeTime(level: number): number {
-  // L1-2 (2x2): 8s, L3-5 (3x3): 12-15s, L6-8 (4x4): 20-25s, L9-10 (5x5): 30-35s
-  return Math.round((8 + (level - 1) * 3) * 10) / 10;
+  // L1-2 (2x2): 8s, L3-5 (3x3): 14-20s, L6-8 (4x4): 25-35s, L9-10 (5x5): 40-50s
+  if (level <= 2) return 8;
+  if (level <= 5) return 10 + (level - 3) * 3; // 10, 13, 16
+  if (level <= 8) return 20 + (level - 6) * 5; // 20, 25, 30
+  return 35 + (level - 9) * 5;                  // 35, 40
 }
 
 /** Calculate answer phase duration for a given level */
 export function getAnswerTime(level: number): number {
-  // L1-2 (2x2): 20s, L3-5 (3x3): 30-40s, L6-8 (4x4): 50-65s, L9-10 (5x5): 80-90s
-  return Math.round((20 + (level - 1) * 8) * 10) / 10;
+  // L1-2 (2x2): 20s, L3-5 (3x3): 30-40s, L6-8 (4x4): 50-65s, L9-10 (5x5): 75-90s
+  if (level <= 2) return 20;
+  if (level <= 5) return 30 + (level - 3) * 5; // 30, 35, 40
+  if (level <= 8) return 50 + (level - 6) * 8; // 50, 58, 66
+  return 75 + (level - 9) * 10;                  // 75, 85
 }
 
 /** Get grid size for a given level:
@@ -60,9 +66,10 @@ export class GameRoom {
 
   private phaseTimer: NodeJS.Timeout | null = null;
   private timeRemaining: number = 0;
-  private answersSubmitted: Set<string> = new Set();
+  private answersSubmitted: Map<string, PlacedItem[]> = new Map();
   private io: Server | null = null;
   private levelEvaluated: boolean = false;
+  private currentAnswerTime: number = 0;
 
   constructor(id: string) {
     this.id = id;
@@ -131,18 +138,25 @@ export class GameRoom {
     }, 1000);
   }
 
+  private clearPhaseTimer() {
+    if (this.phaseTimer) {
+      clearInterval(this.phaseTimer);
+      this.phaseTimer = null;
+    }
+  }
+
   private startLevel() {
     this.status = 'playing';
     this.answersSubmitted.clear();
     this.levelEvaluated = false;
 
     this.gridSize = getGridSize(this.currentLevel);
-    // Fill EVERY cell in the grid
     const totalCells = this.gridSize * this.gridSize;
     this.itemsToMemorize = this.generateGrid(totalCells, this.gridSize);
 
     const memorizeTime = getMemorizeTime(this.currentLevel);
     const answerTime = getAnswerTime(this.currentLevel);
+    this.currentAnswerTime = answerTime;
 
     this.currentPhase = 'memorize';
     this.timeRemaining = memorizeTime;
@@ -159,27 +173,31 @@ export class GameRoom {
   }
 
   private startPhaseTimer(memorizeTime: number, answerTime: number) {
-    if (this.phaseTimer) clearInterval(this.phaseTimer);
+    this.clearPhaseTimer();
 
+    // Immediately broadcast current state
     this.io?.to(this.id).emit('phase_sync', {
       phase: this.currentPhase,
       timeRemaining: this.timeRemaining,
     });
 
     this.phaseTimer = setInterval(() => {
-      this.timeRemaining = Math.round((this.timeRemaining - 1) * 10) / 10;
+      this.timeRemaining = Math.max(0, Math.round((this.timeRemaining - 1) * 10) / 10);
+
       this.io?.to(this.id).emit('phase_sync', {
         phase: this.currentPhase,
         timeRemaining: this.timeRemaining,
       });
 
       if (this.timeRemaining <= 0) {
-        clearInterval(this.phaseTimer!);
+        this.clearPhaseTimer();
+
         if (this.currentPhase === 'memorize') {
           this.currentPhase = 'answer';
           this.timeRemaining = answerTime;
           this.startPhaseTimer(memorizeTime, answerTime);
         } else {
+          // Timer ran out in answer phase — evaluate with whatever was submitted
           this.evaluateLevel();
         }
       }
@@ -197,11 +215,13 @@ export class GameRoom {
       this.answersSubmitted.has(playerId)
     ) return;
 
-    this.answersSubmitted.add(playerId);
+    this.answersSubmitted.set(playerId, placedItems);
     const player = this.players.get(playerId);
 
     if (player) {
       let correctCount = 0;
+      const totalCells = this.gridSize * this.gridSize;
+
       placedItems.forEach(item => {
         const isCorrect = this.itemsToMemorize.some(
           m => m.iconType === item.iconType && m.row === item.row && m.col === item.col,
@@ -210,17 +230,29 @@ export class GameRoom {
       });
 
       const multiplier = this.currentLevel;
-      // Time bonus only applies when there is at least one correct answer
-      const timeBonus = correctCount > 0 ? Math.floor(Math.max(0, timeRemainingAtSubmit)) * multiplier : 0;
+      // Time bonus: only if at least one correct answer, scaled proportionally
+      const safeTime = Math.max(0, timeRemainingAtSubmit);
+      const timeBonus = correctCount > 0
+        ? Math.floor(safeTime * (correctCount / totalCells)) * multiplier
+        : 0;
       const scoreGain = correctCount * 10 * multiplier + timeBonus;
       player.score += scoreGain;
 
-      // Broadcast leaderboard immediately after each submission
+      // Emit individual result back to this player
+      this.io?.to(playerId).emit('answer_result', {
+        correctCount,
+        totalCells,
+        scoreGain,
+        timeBonus,
+      });
+
+      // Broadcast updated leaderboard
       this.broadcastLeaderboard();
     }
 
-    if (this.answersSubmitted.size === this.players.size) {
-      if (this.phaseTimer) clearInterval(this.phaseTimer);
+    // If all players have submitted, evaluate immediately
+    if (this.answersSubmitted.size >= this.players.size) {
+      this.clearPhaseTimer();
       this.evaluateLevel();
     }
   }
@@ -250,6 +282,11 @@ export class GameRoom {
           .sort((a, b) => b.score - a.score),
       });
     } else {
+      // Show "level complete" then start next level after 3s
+      this.io?.to(this.id).emit('level_complete', {
+        level: this.currentLevel,
+        nextLevel: this.currentLevel + 1,
+      });
       setTimeout(() => {
         this.currentLevel++;
         this.startLevel();
@@ -294,7 +331,7 @@ export class GameRoom {
       [shuffledEmojis[i], shuffledEmojis[j]] = [shuffledEmojis[j], shuffledEmojis[i]];
     }
 
-    // Assign one unique emoji per cell (wraps if totalCells > pool size, but that never happens here)
+    // Assign one unique emoji per cell
     for (let i = 0; i < totalCells; i++) {
       items.push({
         id: `item-${i}`,

@@ -1,20 +1,22 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Nunito } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const nunito = Nunito({
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: ["400", "600", "700", "800", "900"],
+  variable: "--font-nunito",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Memory Hack - Multiplayer Game",
-  description: "A real-time multiplayer memory game with cyberpunk aesthetics.",
+  title: "Memory Hack — Multiplayer Memory Battle",
+  description:
+    "Game memori multiplayer real-time! Tantang temanmu, hafalkan posisi emoji, dan buktikan siapa yang paling jago mengingat.",
+  openGraph: {
+    title: "Memory Hack",
+    description: "Real-time multiplayer memory battle game",
+  },
 };
 
 export default function RootLayout({
@@ -23,10 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+    <html lang="id">
+      <body className={`${nunito.variable} antialiased font-nunito`}>
         {children}
       </body>
     </html>

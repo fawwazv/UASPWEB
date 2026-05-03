@@ -10,7 +10,7 @@ export interface Player {
 
 export interface PlacedItem {
   id: string;
-  iconType: string; // native emoji
+  iconType: string;
   row: number;
   col: number;
 }
@@ -33,19 +33,10 @@ export interface GameState {
 
 export const useGameLogic = () => {
   const [gameState, setGameState] = useState<GameState>({
-    roomId: null,
-    hostId: null,
-    status: 'lobby',
-    players: [],
-    currentLevel: 1,
-    gridSize: 2,
-    phase: 'memorize',
-    timeRemaining: 0,
-    memorizeTime: 5,
-    answerTime: 10,
-    itemsToMemorize: [],
-    countdown: 3,
-    finalLeaderboard: [],
+    roomId: null, hostId: null, status: 'lobby', players: [],
+    currentLevel: 1, gridSize: 2, phase: 'memorize',
+    timeRemaining: 0, memorizeTime: 8, answerTime: 20,
+    itemsToMemorize: [], countdown: 3, finalLeaderboard: [],
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -55,16 +46,16 @@ export const useGameLogic = () => {
     const socket = getSocket();
     socket.connect();
 
-    const onConnect = () => setIsSocketConnected(true);
+    const onConnect    = () => setIsSocketConnected(true);
     const onDisconnect = () => setIsSocketConnected(false);
 
     const onRoomState = (data: any) => {
       setGameState(prev => ({
         ...prev,
-        roomId: data.roomId,
-        status: data.status,
+        roomId:  data.roomId,
+        status:  data.status,
         players: data.players,
-        hostId: data.hostId ?? prev.hostId,
+        hostId:  data.hostId ?? prev.hostId,
       }));
     };
 
@@ -75,22 +66,22 @@ export const useGameLogic = () => {
     const onLevelStart = (data: any) => {
       setGameState(prev => ({
         ...prev,
-        currentLevel: data.level,
-        gridSize: data.gridSize,
+        currentLevel:    data.level,
+        gridSize:        data.gridSize,
         itemsToMemorize: data.items,
-        memorizeTime: data.memorizeTime,
-        answerTime: data.answerTime,
-        status: 'playing',
-        phase: 'memorize',
-        timeRemaining: data.memorizeTime,
+        memorizeTime:    data.memorizeTime,
+        answerTime:      data.answerTime,
+        status:          'playing',
+        phase:           'memorize',
+        timeRemaining:   data.memorizeTime,
       }));
     };
 
     const onPhaseSync = (data: any) => {
       setGameState(prev => ({
         ...prev,
-        phase: data.phase,
-        timeRemaining: data.timeRemaining,
+        phase:         data.phase,
+        timeRemaining: Math.max(0, data.timeRemaining),
       }));
     };
 
@@ -101,51 +92,47 @@ export const useGameLogic = () => {
     const onGameOver = (data: { finalLeaderboard: Player[] }) => {
       setGameState(prev => ({
         ...prev,
-        status: 'ended',
+        status:           'ended',
         finalLeaderboard: data.finalLeaderboard,
       }));
     };
 
     const onError = (data: { message?: string; error?: string }) => {
-      setError(data.message || data.error || 'An error occurred');
+      setError(data.message || data.error || 'Terjadi kesalahan');
     };
 
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('room_state', onRoomState);
-    socket.on('game_countdown', onGameCountdown);
-    socket.on('level_start', onLevelStart);
-    socket.on('phase_sync', onPhaseSync);
-    socket.on('leaderboard_update', onLeaderboardUpdate);
-    socket.on('game_over', onGameOver);
-    socket.on('error', onError);
+    socket.on('connect',           onConnect);
+    socket.on('disconnect',        onDisconnect);
+    socket.on('room_state',        onRoomState);
+    socket.on('game_countdown',    onGameCountdown);
+    socket.on('level_start',       onLevelStart);
+    socket.on('phase_sync',        onPhaseSync);
+    socket.on('leaderboard_update',onLeaderboardUpdate);
+    socket.on('game_over',         onGameOver);
+    socket.on('error',             onError);
 
     return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('room_state', onRoomState);
-      socket.off('game_countdown', onGameCountdown);
-      socket.off('level_start', onLevelStart);
-      socket.off('phase_sync', onPhaseSync);
+      socket.off('connect',            onConnect);
+      socket.off('disconnect',         onDisconnect);
+      socket.off('room_state',         onRoomState);
+      socket.off('game_countdown',     onGameCountdown);
+      socket.off('level_start',        onLevelStart);
+      socket.off('phase_sync',         onPhaseSync);
       socket.off('leaderboard_update', onLeaderboardUpdate);
-      socket.off('game_over', onGameOver);
-      socket.off('error', onError);
+      socket.off('game_over',          onGameOver);
+      socket.off('error',              onError);
     };
   }, []);
 
   const createRoom = (callback?: (roomId: string) => void) => {
+    setError(null);
     getSocket().emit('create_room', (res: any) => {
-      if (res.roomId) {
-        if (callback) callback(res.roomId);
-      }
+      if (res.roomId && callback) callback(res.roomId);
     });
   };
 
-  const joinRoom = (
-    roomId: string,
-    playerName: string,
-    callback?: (success: boolean) => void,
-  ) => {
+  const joinRoom = (roomId: string, playerName: string, callback?: (ok: boolean) => void) => {
+    setError(null);
     getSocket().emit('join_room', { roomId, playerName }, (res: any) => {
       if (res.error) {
         setError(res.error);
@@ -158,50 +145,25 @@ export const useGameLogic = () => {
   };
 
   const toggleReady = () => {
-    if (gameState.roomId) {
-      getSocket().emit('player_ready', { roomId: gameState.roomId });
-    }
+    if (gameState.roomId) getSocket().emit('player_ready', { roomId: gameState.roomId });
   };
 
-  /** Emits game_start — only has effect if this client is the host */
   const startGame = () => {
-    if (gameState.roomId) {
-      getSocket().emit('game_start', { roomId: gameState.roomId });
-    }
+    if (gameState.roomId) getSocket().emit('game_start', { roomId: gameState.roomId });
   };
 
   const submitAnswer = (placedItems: PlacedItem[], timeRemaining: number) => {
     if (gameState.roomId) {
-      getSocket().emit('submit_answer', {
-        roomId: gameState.roomId,
-        placedItems,
-        timeRemaining,
-      });
+      getSocket().emit('submit_answer', { roomId: gameState.roomId, placedItems, timeRemaining });
     }
   };
 
   const leaveRoom = () => {
     if (gameState.roomId) {
       getSocket().emit('leave_room', { roomId: gameState.roomId });
-      setGameState(prev => ({
-        ...prev,
-        roomId: null,
-        hostId: null,
-        status: 'lobby',
-        players: [],
-      }));
+      setGameState(prev => ({ ...prev, roomId: null, hostId: null, status: 'lobby', players: [] }));
     }
   };
 
-  return {
-    gameState,
-    error,
-    isSocketConnected,
-    createRoom,
-    joinRoom,
-    toggleReady,
-    startGame,
-    submitAnswer,
-    leaveRoom,
-  };
+  return { gameState, error, isSocketConnected, createRoom, joinRoom, toggleReady, startGame, submitAnswer, leaveRoom };
 };
