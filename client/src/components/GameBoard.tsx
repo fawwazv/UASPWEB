@@ -142,7 +142,7 @@ const Leaderboard = ({ players, myId }: { players: { id: string; name: string; s
 };
 
 // ─── Timer ──────────────────────────────────────────────────────────────────
-const Timer = ({ seconds, isAnswer }: { seconds: number; isAnswer: boolean }) => {
+const Timer = ({ seconds }: { seconds: number; isAnswer: boolean }) => {
   const s = Math.max(0, seconds);
   const isCritical = s <= 5;
   const isWarning = s <= 10;
@@ -200,7 +200,7 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
   // Handle answer_result feedback from server
   useEffect(() => {
     const socket = getSocket();
-    const onResult = (data: { correctCount: number; totalCells: number }) => {
+    const onResult = () => {
       // Build feedback map: compare placedItems vs itemsToMemorize
       const newMap: Record<string, 'correct' | 'wrong'> = {};
       placedItems.forEach(item => {
@@ -213,7 +213,6 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
     };
     socket.on('answer_result', onResult);
     return () => { socket.off('answer_result', onResult); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placedItems, gameState.itemsToMemorize]);
 
   // Handle level_complete event

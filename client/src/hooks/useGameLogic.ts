@@ -49,7 +49,7 @@ export const useGameLogic = () => {
     const onConnect    = () => setIsSocketConnected(true);
     const onDisconnect = () => setIsSocketConnected(false);
 
-    const onRoomState = (data: any) => {
+    const onRoomState = (data: { roomId: string; status: 'lobby' | 'countdown' | 'playing' | 'ended'; players: Player[]; hostId?: string }) => {
       setGameState(prev => ({
         ...prev,
         roomId:  data.roomId,
@@ -63,7 +63,7 @@ export const useGameLogic = () => {
       setGameState(prev => ({ ...prev, countdown: data.count, status: 'countdown' }));
     };
 
-    const onLevelStart = (data: any) => {
+    const onLevelStart = (data: { level: number; gridSize: number; items: PlacedItem[]; memorizeTime: number; answerTime: number }) => {
       setGameState(prev => ({
         ...prev,
         currentLevel:    data.level,
@@ -77,7 +77,7 @@ export const useGameLogic = () => {
       }));
     };
 
-    const onPhaseSync = (data: any) => {
+    const onPhaseSync = (data: { phase: 'memorize' | 'answer'; timeRemaining: number }) => {
       setGameState(prev => ({
         ...prev,
         phase:         data.phase,
@@ -126,14 +126,14 @@ export const useGameLogic = () => {
 
   const createRoom = (callback?: (roomId: string) => void) => {
     setError(null);
-    getSocket().emit('create_room', (res: any) => {
+    getSocket().emit('create_room', (res: { roomId?: string }) => {
       if (res.roomId && callback) callback(res.roomId);
     });
   };
 
   const joinRoom = (roomId: string, playerName: string, callback?: (ok: boolean) => void) => {
     setError(null);
-    getSocket().emit('join_room', { roomId, playerName }, (res: any) => {
+    getSocket().emit('join_room', { roomId, playerName }, (res: { error?: string }) => {
       if (res.error) {
         setError(res.error);
         if (callback) callback(false);
