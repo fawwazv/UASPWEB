@@ -273,7 +273,7 @@ export default function Home() {
                         {publicRooms.map(room => (
                           <div key={room.roomId} className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)' }}>
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-black text-white truncate">{room.hostName}'s Room</p>
+                              <p className="text-sm font-black text-white truncate">{room.hostName}&apos;s Room</p>
                               <p className="text-xs font-bold" style={{ color: 'var(--clr-cyan-lt)' }}>ID: {room.roomId}</p>
                             </div>
                             <button
