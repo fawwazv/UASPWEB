@@ -61,7 +61,7 @@ export class GameManager {
           if (stateStr) {
             const state = JSON.parse(stateStr) as GameRoomState;
             const playerCount = Object.keys(state.players).length;
-            if (!state.isPrivate && state.status === 'lobby' && playerCount < 2) {
+            if (!state.isPrivate && state.status === 'lobby') {
               const host = state.players[state.hostId];
               publicRooms.push({
                 roomId: state.id,
@@ -75,7 +75,7 @@ export class GameManager {
     } else {
       for (const [roomId, room] of this.localRooms.entries()) {
         const playerCount = room.getPlayers().length;
-        if (!room.isPrivate && room.status === 'lobby' && playerCount < 2) {
+        if (!room.isPrivate && room.status === 'lobby') {
           const host = room.players.get(room.hostId);
           publicRooms.push({
             roomId,

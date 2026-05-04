@@ -28,7 +28,7 @@ export default function Home() {
 
   const [joinId, setJoinId] = useState('');
   const [playerName, setPlayerName] = useState('');
-  const [activeTab, setActiveTab] = useState<'create' | 'join'>('create');
+  const [activeTab, setActiveTab] = useState<'create' | 'join' | 'public'>('create');
   const [formError, setFormError] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [publicRooms, setPublicRooms] = useState<PublicRoomInfo[]>([]);
@@ -199,11 +199,11 @@ export default function Home() {
               className="flex rounded-2xl p-1"
               style={{ background: 'rgba(255,255,255,0.05)' }}
             >
-              {(['create', 'join'] as const).map(tab => (
+              {(['create', 'join', 'public'] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className="flex-1 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-black transition-all"
+                  className="flex-1 py-2 md:py-2.5 rounded-xl text-[11px] md:text-sm font-black transition-all"
                   style={
                     activeTab === tab
                       ? {
@@ -214,7 +214,7 @@ export default function Home() {
                       : { color: 'var(--txt-muted)' }
                   }
                 >
-                  {tab === 'create' ? '✨ Buat Room' : '🔑 Gabung Room'}
+                  {tab === 'create' ? '✨ Buat' : tab === 'join' ? '🔑 Gabung' : '🌍 Publik'}
                 </button>
               ))}
             </div>
@@ -262,42 +262,8 @@ export default function Home() {
                       </motion.p>
                     )}
                   </AnimatePresence>
-                  
-                  {/* Public Rooms List */}
-                  <div className="pt-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                    <h3 className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: 'var(--clr-cyan-lt)' }}>
-                      Public Rooms 🌍
-                    </h3>
-                    {publicRooms.length > 0 ? (
-                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.2) transparent' }}>
-                        {publicRooms.map(room => (
-                          <div key={room.roomId} className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)' }}>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-black text-white truncate">{room.hostName}&apos;s Room</p>
-                              <p className="text-xs font-bold" style={{ color: 'var(--clr-cyan-lt)' }}>ID: {room.roomId}</p>
-                            </div>
-                            <button
-                              onClick={() => {
-                                setJoinId(room.roomId);
-                                setActiveTab('join');
-                              }}
-                              className="ml-2 px-3 py-1.5 rounded-lg text-xs font-black transition-transform hover:scale-105"
-                              style={{ background: 'var(--clr-cyan)', color: '#0f172a', boxShadow: '0 2px 8px rgba(6,182,212,0.4)' }}
-                            >
-                              Gabung
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-6 px-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}>
-                        <p className="text-sm font-bold" style={{ color: 'var(--txt-muted)' }}>Belum ada room publik yang terbuka 🏜️</p>
-                        <p className="text-xs font-semibold mt-1" style={{ color: 'var(--txt-faint)' }}>Jadilah yang pertama membuat room!</p>
-                      </div>
-                    )}
-                  </div>
                 </motion.div>
-              ) : (
+              ) : activeTab === 'join' ? (
                 <motion.div
                   key="join"
                   initial={{ opacity: 0, x: 10 }}
@@ -350,6 +316,50 @@ export default function Home() {
                       </motion.p>
                     )}
                   </AnimatePresence>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="public"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.15 }}
+                  className="space-y-3"
+                >
+                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.2) transparent' }}>
+                    {publicRooms.length > 0 ? (
+                      publicRooms.map(room => (
+                        <div key={room.roomId} className="flex items-center justify-between p-3 rounded-2xl" style={{ background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)' }}>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-black text-white truncate">{room.hostName}&apos;s Room</p>
+                            <div className="flex gap-3 items-center mt-0.5">
+                              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--clr-cyan-lt)' }}>ID: {room.roomId}</p>
+                              <p className="text-[10px] font-bold" style={{ color: 'var(--txt-muted)' }}>Pemain: {room.playerCount} Orang</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (!playerName.trim()) {
+                                setFormError('Masukkan nama pemain terlebih dahulu 👋');
+                                return;
+                              }
+                              setFormError('');
+                              joinRoom(room.roomId, playerName);
+                            }}
+                            className="ml-3 px-3 py-1.5 rounded-xl text-xs font-black transition-transform hover:scale-105"
+                            style={{ background: 'var(--clr-cyan)', color: '#0f172a', boxShadow: '0 2px 8px rgba(6,182,212,0.4)' }}
+                          >
+                            Gabung
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 px-4 rounded-2xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                        <p className="text-sm font-bold" style={{ color: 'var(--txt-muted)' }}>Belum ada room publik 🏜️</p>
+                        <p className="text-xs font-semibold mt-1" style={{ color: 'var(--txt-faint)' }}>Jadilah yang pertama membuat room!</p>
+                      </div>
+                    )}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
