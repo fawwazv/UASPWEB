@@ -251,6 +251,11 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.6); }
 
 /* ─── Selection ─────────────────────────────────────────────────────────────── */
+/* ─── Hide Next.js Dev Indicators ─────────────────────────────────────────── */
+nextjs-portal {
+  display: none !important;
+}
+
 ::selection {
   background: rgba(139, 92, 246, 0.4);
   color: #fff;

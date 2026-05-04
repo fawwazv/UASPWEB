@@ -8,7 +8,10 @@ import { redisClient } from './redis';
 
 const app = express();
 
-const corsOrigin = process.env.CLIENT_URL || '*';
+const rawCorsOrigin = process.env.CORS_ORIGIN || process.env.CLIENT_URL || '*';
+const corsOrigin = rawCorsOrigin !== '*' && rawCorsOrigin.endsWith('/') 
+  ? rawCorsOrigin.slice(0, -1) 
+  : rawCorsOrigin;
 
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
