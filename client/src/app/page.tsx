@@ -1,10 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameLogic } from '../hooks/useGameLogic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameBoard } from '../components/GameBoard';
 import { Lobby } from '../components/Lobby';
+import { getSocket } from '../lib/socket';
+
+export interface PublicRoomInfo {
+  roomId: string;
+  hostName: string;
+  playerCount: number;
+}
 
 export default function Home() {
   const {
@@ -23,6 +30,26 @@ export default function Home() {
   const [playerName, setPlayerName] = useState('');
   const [activeTab, setActiveTab] = useState<'create' | 'join'>('create');
   const [formError, setFormError] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [publicRooms, setPublicRooms] = useState<PublicRoomInfo[]>([]);
+
+  useEffect(() => {
+    if (isSocketConnected) {
+      const socket = getSocket();
+      socket.emit('get_public_rooms', (rooms: PublicRoomInfo[]) => {
+        setPublicRooms(rooms);
+      });
+
+      const onPublicRoomsUpdated = (rooms: PublicRoomInfo[]) => {
+        setPublicRooms(rooms);
+      };
+
+      socket.on('public_rooms_updated', onPublicRoomsUpdated);
+      return () => {
+        socket.off('public_rooms_updated', onPublicRoomsUpdated);
+      };
+    }
+  }, [isSocketConnected]);
 
   const handleCreate = () => {
     if (!playerName.trim()) {
@@ -32,7 +59,7 @@ export default function Home() {
     setFormError('');
     createRoom((roomId) => {
       joinRoom(roomId, playerName);
-    });
+    }, isPrivate);
   };
 
   const handleJoin = () => {
@@ -201,7 +228,19 @@ export default function Home() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 10 }}
                   transition={{ duration: 0.15 }}
+                  className="space-y-4"
                 >
+                  <div className="flex items-center justify-between p-3 md:p-4 rounded-2xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-white">Private Room 🔒</p>
+                      <p className="text-[10px] md:text-xs font-semibold" style={{ color: 'var(--txt-faint)' }}>Sembunyikan dari daftar publik</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" className="sr-only peer" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
+                      <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                    </label>
+                  </div>
+
                   <button
                     id="create-room-btn"
                     onClick={handleCreate}
@@ -223,9 +262,40 @@ export default function Home() {
                       </motion.p>
                     )}
                   </AnimatePresence>
-                  <p className="text-center text-xs font-semibold mt-2" style={{ color: 'var(--txt-faint)' }}>
-                    Kamu akan menjadi host dan mengundang teman
-                  </p>
+                  
+                  {/* Public Rooms List */}
+                  <div className="pt-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                    <h3 className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: 'var(--clr-cyan-lt)' }}>
+                      Public Rooms 🌍
+                    </h3>
+                    {publicRooms.length > 0 ? (
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.2) transparent' }}>
+                        {publicRooms.map(room => (
+                          <div key={room.roomId} className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)' }}>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-black text-white truncate">{room.hostName}'s Room</p>
+                              <p className="text-xs font-bold" style={{ color: 'var(--clr-cyan-lt)' }}>ID: {room.roomId}</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setJoinId(room.roomId);
+                                setActiveTab('join');
+                              }}
+                              className="ml-2 px-3 py-1.5 rounded-lg text-xs font-black transition-transform hover:scale-105"
+                              style={{ background: 'var(--clr-cyan)', color: '#0f172a', boxShadow: '0 2px 8px rgba(6,182,212,0.4)' }}
+                            >
+                              Gabung
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 px-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                        <p className="text-sm font-bold" style={{ color: 'var(--txt-muted)' }}>Belum ada room publik yang terbuka 🏜️</p>
+                        <p className="text-xs font-semibold mt-1" style={{ color: 'var(--txt-faint)' }}>Jadilah yang pertama membuat room!</p>
+                      </div>
+                    )}
+                  </div>
                 </motion.div>
               ) : (
                 <motion.div

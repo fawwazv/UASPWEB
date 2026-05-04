@@ -124,9 +124,9 @@ export const useGameLogic = () => {
     };
   }, []);
 
-  const createRoom = (callback?: (roomId: string) => void) => {
+  const createRoom = (callback?: (roomId: string) => void, isPrivate: boolean = false) => {
     setError(null);
-    getSocket().emit('create_room', (res: { roomId?: string }) => {
+    getSocket().emit('create_room', { isPrivate }, (res: { roomId?: string }) => {
       if (res.roomId && callback) callback(res.roomId);
     });
   };

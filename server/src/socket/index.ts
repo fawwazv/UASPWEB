@@ -1,6 +1,11 @@
 import { Server, Socket } from 'socket.io';
 import { gameManager } from '../game/GameManager';
 
+const broadcastPublicRooms = async (io: Server) => {
+  const rooms = await gameManager.getPublicRooms();
+  io.emit('public_rooms_updated', rooms);
+};
+
 export const handleSocketConnection = (io: Server, socket: Socket) => {
   console.log(`User connected: ${socket.id}`);
 
@@ -8,14 +13,32 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
   // It's okay because socket connections are also local to this node.
   const userRooms = new Map<string, string>(); 
 
-  socket.on('create_room', async (callback) => {
-    const roomId = await gameManager.createRoom();
+  socket.on('get_public_rooms', async (callback) => {
+    if (typeof callback === 'function') {
+      callback(await gameManager.getPublicRooms());
+    }
+  });
+
+  socket.on('create_room', async (arg1, arg2) => {
+    let isPrivate = false;
+    let callback;
+    if (typeof arg1 === 'function') {
+      callback = arg1;
+    } else {
+      isPrivate = arg1?.isPrivate || false;
+      callback = arg2;
+    }
+
+    const roomId = await gameManager.createRoom(isPrivate);
     const room = await gameManager.getRoom(roomId);
     if (room) {
       room.setIo(io);
     }
     if (typeof callback === 'function') {
       callback({ roomId });
+    }
+    if (!isPrivate) {
+      await broadcastPublicRooms(io);
     }
   });
 
@@ -38,6 +61,10 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
 
     if (typeof callback === 'function') {
       callback({ success: true, roomId });
+    }
+
+    if (!room.isPrivate) {
+      await broadcastPublicRooms(io);
     }
   });
 
@@ -70,11 +97,15 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
     const room = await gameManager.getRoom(roomId);
     if (room) {
       room.setIo(io);
+      const wasPrivate = room.isPrivate;
       await room.removePlayer(socket.id);
       socket.leave(roomId);
       userRooms.delete(socket.id);
       if (room.getPlayers().length === 0) {
         await gameManager.removeRoom(roomId);
+      }
+      if (!wasPrivate) {
+        await broadcastPublicRooms(io);
       }
     }
   });
@@ -86,9 +117,13 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
       const room = await gameManager.getRoom(roomId);
       if (room) {
         room.setIo(io);
+        const wasPrivate = room.isPrivate;
         await room.removePlayer(socket.id);
         if (room.getPlayers().length === 0) {
           await gameManager.removeRoom(roomId);
+        }
+        if (!wasPrivate) {
+          await broadcastPublicRooms(io);
         }
       }
       userRooms.delete(socket.id);

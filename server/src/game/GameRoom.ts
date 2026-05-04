@@ -19,6 +19,7 @@ export interface GameRoomState {
   hostId: string;
   players: Record<string, Player>;
   status: 'lobby' | 'countdown' | 'playing' | 'ended';
+  isPrivate: boolean;
   currentLevel: number;
   currentPhase: 'memorize' | 'answer';
   itemsToMemorize: PlacedItem[];
@@ -62,6 +63,7 @@ export class GameRoom {
   public hostId: string = '';
   public players: Map<string, Player> = new Map();
   public status: 'lobby' | 'countdown' | 'playing' | 'ended' = 'lobby';
+  public isPrivate: boolean = false;
   public currentLevel: number = 1;
   public currentPhase: 'memorize' | 'answer' = 'memorize';
   public itemsToMemorize: PlacedItem[] = [];
@@ -96,6 +98,7 @@ export class GameRoom {
       hostId: this.hostId,
       players: Object.fromEntries(this.players),
       status: this.status,
+      isPrivate: this.isPrivate,
       currentLevel: this.currentLevel,
       currentPhase: this.currentPhase,
       itemsToMemorize: this.itemsToMemorize,
@@ -112,6 +115,7 @@ export class GameRoom {
     this.hostId = state.hostId;
     this.players = new Map(Object.entries(state.players));
     this.status = state.status;
+    this.isPrivate = state.isPrivate ?? false;
     this.currentLevel = state.currentLevel;
     this.currentPhase = state.currentPhase;
     this.itemsToMemorize = state.itemsToMemorize;

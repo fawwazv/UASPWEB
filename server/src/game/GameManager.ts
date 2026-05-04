@@ -1,12 +1,19 @@
 import { redisClient } from '../redis';
 import { GameRoom, GameRoomState } from './GameRoom';
 
+export interface PublicRoomInfo {
+  roomId: string;
+  hostName: string;
+  playerCount: number;
+}
+
 export class GameManager {
   private localRooms: Map<string, GameRoom> = new Map();
 
-  public async createRoom(): Promise<string> {
+  public async createRoom(isPrivate: boolean = false): Promise<string> {
     const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     const room = new GameRoom(roomId);
+    room.isPrivate = isPrivate;
     
     // Inject save hook so GameRoom can save its state automatically
     room.setSaveHandler(async (state) => {
@@ -41,6 +48,45 @@ export class GameManager {
     } else {
       return this.localRooms.get(roomId);
     }
+  }
+
+  public async getPublicRooms(): Promise<PublicRoomInfo[]> {
+    const publicRooms: PublicRoomInfo[] = [];
+
+    if (redisClient) {
+      const keys = await redisClient.keys('room:*');
+      if (keys.length > 0) {
+        const states = await redisClient.mGet(keys);
+        for (const stateStr of states) {
+          if (stateStr) {
+            const state = JSON.parse(stateStr) as GameRoomState;
+            const playerCount = Object.keys(state.players).length;
+            if (!state.isPrivate && state.status === 'lobby' && playerCount < 2) {
+              const host = state.players[state.hostId];
+              publicRooms.push({
+                roomId: state.id,
+                hostName: host ? host.name : 'Unknown',
+                playerCount,
+              });
+            }
+          }
+        }
+      }
+    } else {
+      for (const [roomId, room] of this.localRooms.entries()) {
+        const playerCount = room.getPlayers().length;
+        if (!room.isPrivate && room.status === 'lobby' && playerCount < 2) {
+          const host = room.players.get(room.hostId);
+          publicRooms.push({
+            roomId,
+            hostName: host ? host.name : 'Unknown',
+            playerCount,
+          });
+        }
+      }
+    }
+
+    return publicRooms;
   }
 
   private async saveRoomState(roomId: string, state: GameRoomState): Promise<void> {
