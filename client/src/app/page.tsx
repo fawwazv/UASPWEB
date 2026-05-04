@@ -75,7 +75,7 @@ export default function Home() {
   const inGame = gameState.status === 'playing' || gameState.status === 'ended';
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8">
+    <main className="min-h-screen flex flex-col items-center justify-center p-3 sm:p-4 md:p-8">
       <AnimatePresence mode="wait">
 
         {/* ── Home Screen ─────────────────────────────────────────────────── */}
@@ -86,7 +86,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-            className="glass-card rounded-3xl p-8 w-full max-w-md space-y-8"
+            className="glass-card rounded-3xl p-6 md:p-8 w-full max-w-md space-y-6 md:space-y-8"
           >
             {/* Hero */}
             <div className="text-center space-y-3">
@@ -94,12 +94,12 @@ export default function Home() {
                 initial={{ scale: 0, rotate: -20 }}
                 animate={{ scale: 1, rotate: 0 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 18, delay: 0.1 }}
-                className="text-7xl leading-none select-none"
+                className="text-6xl md:text-7xl leading-none select-none"
               >
                 🧠
               </motion.div>
               <h1
-                className="text-5xl font-black tracking-tight leading-none"
+                className="text-4xl md:text-5xl font-black tracking-tight leading-none"
                 style={{
                   background: 'linear-gradient(135deg, #a78bfa, #06b6d4, #ec4899)',
                   WebkitBackgroundClip: 'text',
@@ -109,7 +109,7 @@ export default function Home() {
               >
                 Memory Hack
               </h1>
-              <p className="font-bold text-sm" style={{ color: 'var(--txt-muted)' }}>
+              <p className="font-bold text-xs md:text-sm" style={{ color: 'var(--txt-muted)' }}>
                 Siapa yang paling kuat ingatannya? 💪
               </p>
             </div>
@@ -148,7 +148,7 @@ export default function Home() {
                 value={playerName}
                 onChange={e => setPlayerName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && (activeTab === 'create' ? handleCreate() : handleJoin())}
-                className="w-full rounded-2xl px-5 py-3.5 text-base font-bold text-white outline-none transition-all"
+                className="w-full rounded-2xl px-4 py-3 md:px-5 md:py-3.5 text-sm md:text-base font-bold text-white outline-none transition-all"
                 style={{
                   background: 'rgba(255,255,255,0.05)',
                   border: '2px solid rgba(255,255,255,0.1)',
@@ -176,7 +176,7 @@ export default function Home() {
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-black transition-all"
+                  className="flex-1 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-black transition-all"
                   style={
                     activeTab === tab
                       ? {
@@ -205,7 +205,7 @@ export default function Home() {
                   <button
                     id="create-room-btn"
                     onClick={handleCreate}
-                    className="btn-3d btn-purple w-full py-4 text-base"
+                    className="btn-3d btn-purple w-full py-3 md:py-4 text-sm md:text-base"
                   >
                     🚀 Buat Room Baru
                   </button>
@@ -242,7 +242,7 @@ export default function Home() {
                     value={joinId}
                     onChange={e => setJoinId(e.target.value.toUpperCase())}
                     onKeyDown={e => e.key === 'Enter' && handleJoin()}
-                    className="w-full rounded-2xl px-5 py-3.5 text-center text-2xl font-black tracking-[0.3em] uppercase text-white outline-none transition-all"
+                    className="w-full rounded-2xl px-4 py-3 md:px-5 md:py-3.5 text-center text-xl md:text-2xl font-black tracking-[0.3em] uppercase text-white outline-none transition-all"
                     style={{
                       background: 'rgba(255,255,255,0.05)',
                       border: '2px solid rgba(255,255,255,0.1)',
@@ -262,7 +262,7 @@ export default function Home() {
                   <button
                     id="join-room-btn"
                     onClick={handleJoin}
-                    className="btn-3d btn-cyan w-full py-4 text-base"
+                    className="btn-3d btn-cyan w-full py-3 md:py-4 text-sm md:text-base"
                   >
                     ⚡ Gabung Sekarang
                   </button>

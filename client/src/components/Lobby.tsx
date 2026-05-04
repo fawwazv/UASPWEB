@@ -30,7 +30,7 @@ const PlayerAvatar = ({ name, idx }: { name: string; idx: number }) => {
   const color = getPlayerColor(idx);
   return (
     <div
-      className="w-10 h-10 rounded-2xl flex items-center justify-center text-sm font-black shrink-0"
+      className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl flex items-center justify-center text-xs md:text-sm font-black shrink-0"
       style={{ background: color.bg, border: `2px solid ${color.border}`, color: color.text }}
     >
       {name.slice(0, 2).toUpperCase()}
@@ -54,18 +54,18 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom }: LobbyPro
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -16, scale: 0.97 }}
       transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-      className="relative glass-card rounded-3xl p-8 w-full max-w-xl space-y-6"
+      className="relative glass-card rounded-3xl p-6 md:p-8 w-full max-w-xl space-y-5 md:space-y-6"
     >
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <div className="flex justify-between items-start">
         <div className="space-y-1">
-          <h2 className="text-3xl font-black text-white">Ruang Tunggu</h2>
+          <h2 className="text-2xl md:text-3xl font-black text-white">Ruang Tunggu</h2>
           <div className="flex items-center gap-2">
             <span className="text-xs font-black uppercase tracking-widest" style={{ color: 'var(--txt-muted)' }}>
               Kode Room:
             </span>
             <span
-              className="text-xl font-black tracking-[0.2em] px-3 py-0.5 rounded-xl"
+              className="text-lg md:text-xl font-black tracking-[0.2em] px-3 py-0.5 rounded-xl"
               style={{
                 background: 'rgba(139,92,246,0.2)',
                 border: '1.5px solid rgba(139,92,246,0.5)',
@@ -79,7 +79,7 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom }: LobbyPro
         <button
           id="leave-room-btn"
           onClick={leaveRoom}
-          className="btn-3d btn-red px-4 py-2 text-sm"
+          className="btn-3d btn-red px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm"
         >
           ✕ Keluar
         </button>
@@ -87,10 +87,10 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom }: LobbyPro
 
       {/* ── Share hint ───────────────────────────────────────────────────── */}
       <div
-        className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold"
+        className="flex items-center gap-2 md:gap-3 rounded-2xl px-3 py-2 md:px-4 md:py-3 text-xs md:text-sm font-bold"
         style={{ background: 'rgba(6,182,212,0.08)', border: '1.5px solid rgba(6,182,212,0.2)', color: 'var(--clr-cyan-lt)' }}
       >
-        <span className="text-lg">💡</span>
+        <span className="text-base md:text-lg">💡</span>
         <span>Bagikan kode room ke temanmu agar mereka bisa bergabung!</span>
       </div>
 
@@ -122,7 +122,7 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom }: LobbyPro
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 16, scale: 0.95 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-                  className="flex items-center gap-3 rounded-2xl px-4 py-3"
+                  className="flex items-center gap-2 md:gap-3 rounded-2xl px-3 py-2 md:px-4 md:py-3"
                   style={{
                     background: isSelf ? color.bg : 'rgba(255,255,255,0.04)',
                     border: `1.5px solid ${isSelf ? color.border : 'rgba(255,255,255,0.08)'}`,
@@ -133,7 +133,7 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom }: LobbyPro
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-black text-white truncate">{player.name}</span>
+                      <span className="font-black text-sm md:text-base text-white truncate">{player.name}</span>
                       {isSelf && (
                         <span
                           className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
@@ -155,7 +155,7 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom }: LobbyPro
 
                   {/* Ready status badge */}
                   <div
-                    className="text-xs font-black px-3 py-1.5 rounded-xl shrink-0"
+                    className="text-[10px] md:text-xs font-black px-2 py-1 md:px-3 md:py-1.5 rounded-xl shrink-0"
                     style={
                       isPlayerHost
                         ? { background: 'rgba(245,158,11,0.15)', color: '#fcd34d' }
@@ -187,7 +187,7 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom }: LobbyPro
               id="start-game-btn"
               onClick={startGame}
               disabled={!canStart}
-              className="btn-3d w-full py-4 text-base"
+              className="btn-3d w-full py-3 md:py-4 text-sm md:text-base"
               style={
                 canStart
                   ? {}
@@ -204,7 +204,7 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom }: LobbyPro
               {/* We can't use btn-green class with disabled conditional so use inline style */}
               {canStart ? (
                 <span
-                  className="btn-3d btn-green w-full py-4 text-base block"
+                  className="btn-3d btn-green w-full py-3 md:py-4 text-sm md:text-base block"
                   style={{ pointerEvents: 'none' }}
                 >
                   ▶ Mulai Permainan!
@@ -224,7 +224,7 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom }: LobbyPro
             id="ready-btn"
             onClick={toggleReady}
             whileTap={{ scale: 0.97 }}
-            className={`btn-3d w-full py-4 text-base ${myPlayer?.isReady ? 'btn-green' : 'btn-purple'}`}
+            className={`btn-3d w-full py-3 md:py-4 text-sm md:text-base ${myPlayer?.isReady ? 'btn-green' : 'btn-purple'}`}
           >
             {myPlayer?.isReady ? '✓ Siap! (Klik untuk batal)' : '🙋 Klik untuk Siap'}
           </motion.button>
@@ -255,7 +255,7 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom }: LobbyPro
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.4, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 300, damping: 18 }}
-              className="text-9xl font-black"
+              className="text-7xl md:text-9xl font-black"
               style={{
                 background: 'linear-gradient(135deg, #a78bfa, #67e8f9)',
                 WebkitBackgroundClip: 'text',

@@ -13,7 +13,7 @@ import { getSocket } from '../lib/socket';
 
 // ─── Emoji Display ──────────────────────────────────────────────────────────
 const EmojiDisplay = ({ emoji, size = 'md' }: { emoji: string; size?: 'sm' | 'md' | 'lg' }) => {
-  const sz = size === 'lg' ? 'text-4xl' : size === 'md' ? 'text-3xl' : 'text-xl';
+  const sz = size === 'lg' ? 'text-3xl md:text-4xl' : size === 'md' ? 'text-2xl md:text-3xl' : 'text-lg md:text-xl';
   return (
     <span className={`${sz} select-none leading-none`}
       style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif' }}>
@@ -24,8 +24,8 @@ const EmojiDisplay = ({ emoji, size = 'md' }: { emoji: string; size?: 'sm' | 'md
 
 // ─── Draggable Item ─────────────────────────────────────────────────────────
 const DraggableItem = ({
-  id, iconType, feedbackState,
-}: { id: string; iconType: string; feedbackState?: 'correct' | 'wrong' | null }) => {
+  id, iconType, feedbackState, sizeClass = 'w-12 h-12 md:w-14 md:h-14'
+}: { id: string; iconType: string; feedbackState?: 'correct' | 'wrong' | null; sizeClass?: string }) => {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
 
   const mergedStyle: React.CSSProperties = {
@@ -44,7 +44,7 @@ const DraggableItem = ({
       layout
       animate={feedbackState === 'wrong' ? { x: [-6, 6, -5, 5, -3, 3, 0] } : {}}
       transition={feedbackState === 'wrong' ? { duration: 0.45 } : { layout: { type: 'spring', stiffness: 400, damping: 30 } }}
-      className="drag-chip w-16 h-16 flex items-center justify-center touch-none"
+      className={`drag-chip flex items-center justify-center touch-none ${sizeClass}`}
     >
       <EmojiDisplay emoji={iconType} size="md" />
     </motion.div>
@@ -52,9 +52,9 @@ const DraggableItem = ({
 };
 
 // ─── Drag Overlay Item (follows cursor) ─────────────────────────────────────
-const DragOverlayItem = ({ iconType }: { iconType: string }) => (
+const DragOverlayItem = ({ iconType, sizeClass = 'w-14 h-14 md:w-16 md:h-16' }: { iconType: string; sizeClass?: string }) => (
   <div
-    className="drag-chip w-16 h-16 flex items-center justify-center touch-none"
+    className={`drag-chip flex items-center justify-center touch-none ${sizeClass}`}
     style={{
       transform: 'scale(1.15) rotate(4deg)',
       boxShadow: '0 12px 40px rgba(139,92,246,0.5)',
@@ -70,13 +70,12 @@ const DragOverlayItem = ({ iconType }: { iconType: string }) => (
 // ─── Droppable Cell ─────────────────────────────────────────────────────────
 const DroppableCell = ({ id, children, size }: { id: string; children: React.ReactNode; size: number }) => {
   const { setNodeRef, isOver } = useDroppable({ id });
-  const cellPx = size <= 2 ? 80 : size <= 3 ? 72 : size <= 4 ? 64 : 56;
+  const cellClass = size <= 2 ? 'w-16 h-16 md:w-20 md:h-20' : size <= 3 ? 'w-14 h-14 md:w-[72px] md:h-[72px]' : size <= 4 ? 'w-[50px] h-[50px] md:w-16 md:h-16' : 'w-11 h-11 md:w-14 md:h-14';
   return (
     <div
       ref={setNodeRef}
-      className="drop-cell flex items-center justify-center transition-all"
+      className={`drop-cell flex items-center justify-center transition-all ${cellClass}`}
       style={{
-        width: cellPx, height: cellPx,
         ...(isOver ? { borderColor: '#a78bfa', borderStyle: 'solid', background: 'rgba(139,92,246,0.18)', boxShadow: 'inset 0 0 16px rgba(139,92,246,0.25)' } : {}),
       }}
     >
@@ -155,7 +154,7 @@ const Timer = ({ seconds, isAnswer }: { seconds: number; isAnswer: boolean }) =>
         ? { scale: [1, 1.08, 1], color: '#ef4444' }
         : isWarning ? { color: '#f97316' } : { color: '#ffffff' }}
       transition={{ duration: 0.5, repeat: isCritical ? Infinity : 0 }}
-      className="text-4xl font-black tabular-nums"
+      className="text-3xl md:text-4xl font-black tabular-nums"
     >
       {mins}:{secs}
     </motion.div>
@@ -305,18 +304,18 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
         initial={{ opacity: 0, scale: 0.85 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-        className="glass-card rounded-3xl p-8 max-w-lg w-full text-center space-y-6"
+        className="glass-card rounded-3xl p-6 md:p-8 max-w-lg w-full text-center space-y-5 md:space-y-6"
       >
         <div className="space-y-2">
           <motion.div
             initial={{ scale: 0, rotate: -20 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 16, delay: 0.1 }}
-            className="text-7xl"
+            className="text-6xl md:text-7xl"
           >
             {isWinner ? '🏆' : '🎮'}
           </motion.div>
-          <h2 className="text-4xl font-black text-white">
+          <h2 className="text-3xl md:text-4xl font-black text-white">
             {isWinner ? 'Kamu Menang!' : 'Game Selesai!'}
           </h2>
           <p className="text-sm font-bold" style={{ color: 'var(--txt-muted)' }}>Peringkat Akhir</p>
@@ -351,7 +350,7 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
           })}
         </div>
 
-        <button onClick={() => window.location.reload()} className="btn-3d btn-purple w-full py-4 text-base">
+        <button onClick={() => window.location.reload()} className="btn-3d btn-purple w-full py-3 md:py-4 text-sm md:text-base">
           🔁 Main Lagi
         </button>
       </motion.div>
@@ -418,8 +417,7 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
                           initial={{ scale: 0, rotate: -12 }}
                           animate={{ scale: 1, rotate: 0 }}
                           transition={{ type: 'spring', delay: (r * gameState.gridSize + c) * 0.04 }}
-                          className="emoji-card flex items-center justify-center"
-                          style={{ width: gameState.gridSize <= 2 ? 72 : gameState.gridSize <= 3 ? 64 : gameState.gridSize <= 4 ? 56 : 48, height: gameState.gridSize <= 2 ? 72 : gameState.gridSize <= 3 ? 64 : gameState.gridSize <= 4 ? 56 : 48 }}
+                          className="emoji-card flex items-center justify-center w-full h-full"
                         >
                           <EmojiDisplay emoji={memItem.iconType} size={gameState.gridSize <= 3 ? 'lg' : 'md'} />
                         </motion.div>
@@ -429,6 +427,7 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
                           id={placedItem.id}
                           iconType={placedItem.iconType}
                           feedbackState={feedbackMap[placedItem.id] ?? null}
+                          sizeClass="w-full h-full"
                         />
                       )}
                     </DroppableCell>
