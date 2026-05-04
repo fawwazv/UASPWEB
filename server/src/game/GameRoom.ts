@@ -9,44 +9,47 @@ export interface Player {
 
 export interface PlacedItem {
   id: string;
-  iconType: string; // native emoji string
+  iconType: string;
   row: number;
   col: number;
 }
 
-// 32 unique native emojis across 4 categories — enough to fill a 5×5 grid
+export interface GameRoomState {
+  id: string;
+  hostId: string;
+  players: Record<string, Player>;
+  status: 'lobby' | 'countdown' | 'playing' | 'ended';
+  currentLevel: number;
+  currentPhase: 'memorize' | 'answer';
+  itemsToMemorize: PlacedItem[];
+  gridSize: number;
+  timeRemaining: number;
+  currentAnswerTime: number;
+  answersSubmitted: Record<string, PlacedItem[]>;
+  levelEvaluated: boolean;
+}
+
 const EMOJI_POOL = [
-  // Animals
   '🐶','🐱','🦊','🐻','🐼','🦁','🐯','🐨',
-  // Foods
   '🍕','🍔','🌮','🍣','🧇','🍩','🎂','🍉',
-  // Objects
   '🎸','🚀','🎮','🔮','🧲','🎨','🧸','🪄',
-  // Symbols
   '⚡','🔥','💧','🌊','🌈','☄️','🌙','⭐',
 ];
 
-/** Calculate memorize phase duration for a given level */
 export function getMemorizeTime(level: number): number {
-  // L1-2 (2x2): 8s, L3-5 (3x3): 14-20s, L6-8 (4x4): 25-35s, L9-10 (5x5): 40-50s
   if (level <= 2) return 8;
-  if (level <= 5) return 10 + (level - 3) * 3; // 10, 13, 16
-  if (level <= 8) return 20 + (level - 6) * 5; // 20, 25, 30
-  return 35 + (level - 9) * 5;                  // 35, 40
+  if (level <= 5) return 10 + (level - 3) * 3;
+  if (level <= 8) return 20 + (level - 6) * 5;
+  return 35 + (level - 9) * 5;
 }
 
-/** Calculate answer phase duration for a given level */
 export function getAnswerTime(level: number): number {
-  // L1-2 (2x2): 20s, L3-5 (3x3): 30-40s, L6-8 (4x4): 50-65s, L9-10 (5x5): 75-90s
   if (level <= 2) return 20;
-  if (level <= 5) return 30 + (level - 3) * 5; // 30, 35, 40
-  if (level <= 8) return 50 + (level - 6) * 8; // 50, 58, 66
-  return 75 + (level - 9) * 10;                  // 75, 85
+  if (level <= 5) return 30 + (level - 3) * 5;
+  if (level <= 8) return 50 + (level - 6) * 8;
+  return 75 + (level - 9) * 10;
 }
 
-/** Get grid size for a given level:
- * L1-2 = 2x2, L3-5 = 3x3, L6-8 = 4x4, L9-10 = 5x5
- */
 export function getGridSize(level: number): number {
   if (level <= 2) return 2;
   if (level <= 5) return 3;
@@ -70,73 +73,117 @@ export class GameRoom {
   private io: Server | null = null;
   private levelEvaluated: boolean = false;
   private currentAnswerTime: number = 0;
+  
+  private saveHandler?: (state: GameRoomState) => Promise<void>;
 
   constructor(id: string) {
     this.id = id;
+  }
+
+  public setSaveHandler(handler: (state: GameRoomState) => Promise<void>) {
+    this.saveHandler = handler;
+  }
+
+  private async saveState() {
+    if (this.saveHandler) {
+      await this.saveHandler(this.getState());
+    }
+  }
+
+  public getState(): GameRoomState {
+    return {
+      id: this.id,
+      hostId: this.hostId,
+      players: Object.fromEntries(this.players),
+      status: this.status,
+      currentLevel: this.currentLevel,
+      currentPhase: this.currentPhase,
+      itemsToMemorize: this.itemsToMemorize,
+      gridSize: this.gridSize,
+      timeRemaining: this.timeRemaining,
+      currentAnswerTime: this.currentAnswerTime,
+      answersSubmitted: Object.fromEntries(this.answersSubmitted),
+      levelEvaluated: this.levelEvaluated,
+    };
+  }
+
+  public setState(state: GameRoomState) {
+    this.id = state.id;
+    this.hostId = state.hostId;
+    this.players = new Map(Object.entries(state.players));
+    this.status = state.status;
+    this.currentLevel = state.currentLevel;
+    this.currentPhase = state.currentPhase;
+    this.itemsToMemorize = state.itemsToMemorize;
+    this.gridSize = state.gridSize;
+    this.timeRemaining = state.timeRemaining;
+    this.currentAnswerTime = state.currentAnswerTime;
+    this.answersSubmitted = new Map(Object.entries(state.answersSubmitted));
+    this.levelEvaluated = state.levelEvaluated;
   }
 
   public setIo(io: Server) {
     this.io = io;
   }
 
-  public addPlayer(id: string, name: string) {
-    // First player to join becomes the host
+  public async addPlayer(id: string, name: string) {
     if (this.players.size === 0) {
       this.hostId = id;
     }
     this.players.set(id, { id, name, isReady: false, score: 0 });
     this.broadcastState();
+    await this.saveState();
   }
 
-  public removePlayer(id: string) {
+  public async removePlayer(id: string) {
     this.players.delete(id);
-    // If host left, promote the next available player
     if (id === this.hostId && this.players.size > 0) {
       this.hostId = this.players.keys().next().value!;
     }
     this.broadcastState();
+    await this.saveState();
   }
 
   public getPlayers() {
     return Array.from(this.players.values());
   }
 
-  public toggleReady(id: string) {
-    // Host does not use the ready toggle — they use "Start Game"
+  public async toggleReady(id: string) {
     if (id === this.hostId) return;
     const player = this.players.get(id);
     if (player) {
       player.isReady = !player.isReady;
       this.broadcastState();
+      await this.saveState();
     }
   }
 
-  /**
-   * Returns true when the game can be started:
-   * - At least one non-host player exists
-   * - All non-host players are ready
-   */
   public canStart(): boolean {
     const nonHostPlayers = this.getPlayers().filter(p => p.id !== this.hostId);
     return nonHostPlayers.length > 0 && nonHostPlayers.every(p => p.isReady);
   }
 
-  public startGame() {
+  public async startGame() {
     this.status = 'countdown';
     this.currentLevel = 1;
     this.getPlayers().forEach(p => (p.score = 0));
     this.broadcastState();
+    await this.saveState();
 
     let countdown = 3;
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       countdown--;
       if (countdown > 0) {
         this.io?.to(this.id).emit('game_countdown', { count: countdown });
       } else {
         clearInterval(interval);
-        this.startLevel();
+        await this.startLevel();
       }
     }, 1000);
+  }
+
+  public cleanup() {
+    this.clearPhaseTimer();
   }
 
   private clearPhaseTimer() {
@@ -146,7 +193,7 @@ export class GameRoom {
     }
   }
 
-  private startLevel() {
+  private async startLevel() {
     this.status = 'playing';
     this.answersSubmitted.clear();
     this.levelEvaluated = false;
@@ -170,19 +217,19 @@ export class GameRoom {
       answerTime,
     });
 
+    await this.saveState();
     this.startPhaseTimer(memorizeTime, answerTime);
   }
 
   private startPhaseTimer(memorizeTime: number, answerTime: number) {
     this.clearPhaseTimer();
 
-    // Immediately broadcast current state
     this.io?.to(this.id).emit('phase_sync', {
       phase: this.currentPhase,
       timeRemaining: this.timeRemaining,
     });
 
-    this.phaseTimer = setInterval(() => {
+    this.phaseTimer = setInterval(async () => {
       this.timeRemaining = Math.max(0, Math.round((this.timeRemaining - 1) * 10) / 10);
 
       this.io?.to(this.id).emit('phase_sync', {
@@ -190,22 +237,26 @@ export class GameRoom {
         timeRemaining: this.timeRemaining,
       });
 
+      // To prevent spamming Redis every second, we might not await this.saveState() here, 
+      // but for accuracy and cross-node sync we will do it every few seconds or only at transitions.
+      // For now, let's keep it simple and just do it at phase transitions to avoid overloading Redis.
+      
       if (this.timeRemaining <= 0) {
         this.clearPhaseTimer();
 
         if (this.currentPhase === 'memorize') {
           this.currentPhase = 'answer';
           this.timeRemaining = answerTime;
+          await this.saveState();
           this.startPhaseTimer(memorizeTime, answerTime);
         } else {
-          // Timer ran out in answer phase — evaluate with whatever was submitted
-          this.evaluateLevel();
+          await this.evaluateLevel();
         }
       }
     }, 1000);
   }
 
-  public submitAnswer(
+  public async submitAnswer(
     playerId: string,
     placedItems: PlacedItem[],
     timeRemainingAtSubmit: number,
@@ -231,7 +282,6 @@ export class GameRoom {
       });
 
       const multiplier = this.currentLevel;
-      // Time bonus: only if at least one correct answer, scaled proportionally
       const safeTime = Math.max(0, timeRemainingAtSubmit);
       const timeBonus = correctCount > 0
         ? Math.floor(safeTime * (correctCount / totalCells)) * multiplier
@@ -239,7 +289,6 @@ export class GameRoom {
       const scoreGain = correctCount * 10 * multiplier + timeBonus;
       player.score += scoreGain;
 
-      // Emit individual result back to this player
       this.io?.to(playerId).emit('answer_result', {
         correctCount,
         totalCells,
@@ -247,14 +296,13 @@ export class GameRoom {
         timeBonus,
       });
 
-      // Broadcast updated leaderboard
       this.broadcastLeaderboard();
+      await this.saveState();
     }
 
-    // If all players have submitted, evaluate immediately
     if (this.answersSubmitted.size >= this.players.size) {
       this.clearPhaseTimer();
-      this.evaluateLevel();
+      await this.evaluateLevel();
     }
   }
 
@@ -267,8 +315,7 @@ export class GameRoom {
     this.io?.to(this.id).emit('leaderboard_update', { players: sorted });
   }
 
-  private evaluateLevel() {
-    // Guard against double-evaluation (e.g. all-submit + timer expiry race)
+  private async evaluateLevel() {
     if (this.levelEvaluated) return;
     this.levelEvaluated = true;
 
@@ -282,15 +329,16 @@ export class GameRoom {
           .slice()
           .sort((a, b) => b.score - a.score),
       });
+      await this.saveState();
     } else {
-      // Show "level complete" then start next level after 3s
       this.io?.to(this.id).emit('level_complete', {
         level: this.currentLevel,
         nextLevel: this.currentLevel + 1,
       });
-      setTimeout(() => {
+      await this.saveState();
+      setTimeout(async () => {
         this.currentLevel++;
-        this.startLevel();
+        await this.startLevel();
       }, 3000);
     }
   }
@@ -304,14 +352,9 @@ export class GameRoom {
     });
   }
 
-  /**
-   * Generates PlacedItems that fill every cell in the grid.
-   * Uses a shuffled subset of EMOJI_POOL.
-   */
   private generateGrid(totalCells: number, gridSize: number): PlacedItem[] {
     const items: PlacedItem[] = [];
 
-    // Build all cell positions
     const positions: { row: number; col: number }[] = [];
     for (let r = 0; r < gridSize; r++) {
       for (let c = 0; c < gridSize; c++) {
@@ -319,20 +362,17 @@ export class GameRoom {
       }
     }
 
-    // Shuffle positions (Fisher-Yates)
     for (let i = positions.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [positions[i], positions[j]] = [positions[j], positions[i]];
     }
 
-    // Shuffle emoji pool
     const shuffledEmojis = [...EMOJI_POOL];
     for (let i = shuffledEmojis.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffledEmojis[i], shuffledEmojis[j]] = [shuffledEmojis[j], shuffledEmojis[i]];
     }
 
-    // Assign one unique emoji per cell
     for (let i = 0; i < totalCells; i++) {
       items.push({
         id: `item-${i}`,
