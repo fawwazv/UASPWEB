@@ -129,9 +129,10 @@ export class GameRoom {
 
     let countdown = 3;
     const interval = setInterval(() => {
-      this.io?.to(this.id).emit('game_countdown', { count: countdown });
       countdown--;
-      if (countdown < 0) {
+      if (countdown > 0) {
+        this.io?.to(this.id).emit('game_countdown', { count: countdown });
+      } else {
         clearInterval(interval);
         this.startLevel();
       }
