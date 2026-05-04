@@ -23,6 +23,7 @@ export default function Home() {
     startGame,
     submitAnswer,
     leaveRoom,
+    deleteRoom,
     isSocketConnected,
   } = useGameLogic();
 
@@ -379,6 +380,7 @@ export default function Home() {
             toggleReady={toggleReady}
             startGame={startGame}
             leaveRoom={leaveRoom}
+            deleteRoom={deleteRoom}
           />
         )}
 

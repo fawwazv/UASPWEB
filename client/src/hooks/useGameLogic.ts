@@ -101,6 +101,11 @@ export const useGameLogic = () => {
       setError(data.message || data.error || 'Terjadi kesalahan');
     };
 
+    const onRoomDeleted = () => {
+      setGameState(prev => ({ ...prev, roomId: null, hostId: null, status: 'lobby', players: [] }));
+      setError('Room telah dibubarkan oleh Host');
+    };
+
     socket.on('connect',           onConnect);
     socket.on('disconnect',        onDisconnect);
     socket.on('room_state',        onRoomState);
@@ -110,6 +115,7 @@ export const useGameLogic = () => {
     socket.on('leaderboard_update',onLeaderboardUpdate);
     socket.on('game_over',         onGameOver);
     socket.on('error',             onError);
+    socket.on('room_deleted',      onRoomDeleted);
 
     return () => {
       socket.off('connect',            onConnect);
@@ -121,6 +127,7 @@ export const useGameLogic = () => {
       socket.off('leaderboard_update', onLeaderboardUpdate);
       socket.off('game_over',          onGameOver);
       socket.off('error',              onError);
+      socket.off('room_deleted',       onRoomDeleted);
     };
   }, []);
 
@@ -165,5 +172,12 @@ export const useGameLogic = () => {
     }
   };
 
-  return { gameState, error, isSocketConnected, createRoom, joinRoom, toggleReady, startGame, submitAnswer, leaveRoom };
+  const deleteRoom = () => {
+    if (gameState.roomId) {
+      getSocket().emit('delete_room', { roomId: gameState.roomId });
+      setGameState(prev => ({ ...prev, roomId: null, hostId: null, status: 'lobby', players: [] }));
+    }
+  };
+
+  return { gameState, error, isSocketConnected, createRoom, joinRoom, toggleReady, startGame, submitAnswer, leaveRoom, deleteRoom };
 };

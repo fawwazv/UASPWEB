@@ -9,6 +9,7 @@ interface LobbyProps {
   toggleReady: () => void;
   startGame: () => void;
   leaveRoom: () => void;
+  deleteRoom: () => void;
 }
 
 // Deterministic color per player based on their name's char code sum
@@ -38,7 +39,7 @@ const PlayerAvatar = ({ name, idx }: { name: string; idx: number }) => {
   );
 };
 
-export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom }: LobbyProps) => {
+export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom }: LobbyProps) => {
   const myId = getSocket().id;
   const isHost = myId === gameState.hostId;
   const myPlayer = gameState.players.find(p => p.id === myId);
@@ -76,13 +77,23 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom }: LobbyPro
             </span>
           </div>
         </div>
-        <button
-          id="leave-room-btn"
-          onClick={leaveRoom}
-          className="btn-3d btn-red px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm"
-        >
-          ✕ Keluar
-        </button>
+        {isHost ? (
+          <button
+            id="delete-room-btn"
+            onClick={deleteRoom}
+            className="btn-3d btn-red px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm"
+          >
+            🗑️ Hapus Room
+          </button>
+        ) : (
+          <button
+            id="leave-room-btn"
+            onClick={leaveRoom}
+            className="btn-3d btn-red px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm"
+          >
+            ✕ Keluar
+          </button>
+        )}
       </div>
 
       {/* ── Share hint ───────────────────────────────────────────────────── */}

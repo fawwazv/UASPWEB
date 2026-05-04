@@ -93,17 +93,43 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
     }
   });
 
+  socket.on('delete_room', async ({ roomId }) => {
+    const room = await gameManager.getRoom(roomId);
+    if (room && room.hostId === socket.id) {
+      const wasPrivate = room.isPrivate;
+      io.to(roomId).emit('room_deleted');
+      await gameManager.removeRoom(roomId);
+      io.socketsLeave(roomId);
+      
+      if (!wasPrivate) {
+        await broadcastPublicRooms(io);
+      }
+    }
+  });
+
   socket.on('leave_room', async ({ roomId }) => {
     const room = await gameManager.getRoom(roomId);
     if (room) {
       room.setIo(io);
       const wasPrivate = room.isPrivate;
-      await room.removePlayer(socket.id);
-      socket.leave(roomId);
-      userRooms.delete(socket.id);
-      if (room.getPlayers().length === 0) {
+      const isHost = room.hostId === socket.id;
+
+      if (isHost) {
+        io.to(roomId).emit('room_deleted');
         await gameManager.removeRoom(roomId);
+        io.socketsLeave(roomId);
+      } else {
+        await room.removePlayer(socket.id);
+        socket.leave(roomId);
+        userRooms.delete(socket.id);
+        
+        if (room.getPlayers().length === 0) {
+          await gameManager.removeRoom(roomId);
+        } else {
+          await room.resetToLobby();
+        }
       }
+      
       if (!wasPrivate) {
         await broadcastPublicRooms(io);
       }
@@ -118,10 +144,21 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
       if (room) {
         room.setIo(io);
         const wasPrivate = room.isPrivate;
-        await room.removePlayer(socket.id);
-        if (room.getPlayers().length === 0) {
+        const isHost = room.hostId === socket.id;
+
+        if (isHost) {
+          io.to(roomId).emit('room_deleted');
           await gameManager.removeRoom(roomId);
+          io.socketsLeave(roomId);
+        } else {
+          await room.removePlayer(socket.id);
+          if (room.getPlayers().length === 0) {
+            await gameManager.removeRoom(roomId);
+          } else {
+            await room.resetToLobby();
+          }
         }
+        
         if (!wasPrivate) {
           await broadcastPublicRooms(io);
         }

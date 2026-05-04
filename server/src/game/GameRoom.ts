@@ -190,6 +190,18 @@ export class GameRoom {
     this.clearPhaseTimer();
   }
 
+  public async resetToLobby() {
+    this.cleanup();
+    this.status = 'lobby';
+    this.currentLevel = 1;
+    this.getPlayers().forEach(p => {
+      p.isReady = false;
+      p.score = 0;
+    });
+    this.broadcastState();
+    await this.saveState();
+  }
+
   private clearPhaseTimer() {
     if (this.phaseTimer) {
       clearInterval(this.phaseTimer);
