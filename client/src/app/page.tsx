@@ -22,17 +22,29 @@ export default function Home() {
   const [joinId, setJoinId] = useState('');
   const [playerName, setPlayerName] = useState('');
   const [activeTab, setActiveTab] = useState<'create' | 'join'>('create');
+  const [formError, setFormError] = useState('');
 
   const handleCreate = () => {
-    if (!playerName.trim()) return alert('Masukkan nama pemainmu terlebih dahulu! 👋');
+    if (!playerName.trim()) {
+      setFormError('Masukkan nama pemain terlebih dahulu 👋');
+      return;
+    }
+    setFormError('');
     createRoom((roomId) => {
       joinRoom(roomId, playerName);
     });
   };
 
   const handleJoin = () => {
-    if (!playerName.trim()) return alert('Masukkan nama pemainmu terlebih dahulu! 👋');
-    if (!joinId.trim()) return alert('Masukkan kode room terlebih dahulu! 🔑');
+    if (!playerName.trim()) {
+      setFormError('Masukkan nama pemain terlebih dahulu 👋');
+      return;
+    }
+    if (!joinId.trim()) {
+      setFormError('Masukkan kode room terlebih dahulu 🔑');
+      return;
+    }
+    setFormError('');
     joinRoom(joinId.trim().toUpperCase(), playerName);
   };
 
@@ -197,7 +209,21 @@ export default function Home() {
                   >
                     🚀 Buat Room Baru
                   </button>
-                  <p className="text-center text-xs font-semibold mt-3" style={{ color: 'var(--txt-faint)' }}>
+                  <AnimatePresence>
+                    {formError && activeTab === 'create' && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.2 }}
+                        className="text-center text-xs font-bold mt-2"
+                        style={{ color: '#f87171' }}
+                      >
+                        {formError}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                  <p className="text-center text-xs font-semibold mt-2" style={{ color: 'var(--txt-faint)' }}>
                     Kamu akan menjadi host dan mengundang teman
                   </p>
                 </motion.div>
@@ -240,6 +266,20 @@ export default function Home() {
                   >
                     ⚡ Gabung Sekarang
                   </button>
+                  <AnimatePresence>
+                    {formError && activeTab === 'join' && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.2 }}
+                        className="text-center text-xs font-bold"
+                        style={{ color: '#f87171' }}
+                      >
+                        {formError}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
               )}
             </AnimatePresence>

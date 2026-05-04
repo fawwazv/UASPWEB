@@ -7,6 +7,7 @@ import {
   DndContext, useDraggable, useDroppable,
   DragEndEvent, DragStartEvent,
   PointerSensor, useSensor, useSensors,
+  DragOverlay,
 } from '@dnd-kit/core';
 import { getSocket } from '../lib/socket';
 
@@ -25,13 +26,13 @@ const EmojiDisplay = ({ emoji, size = 'md' }: { emoji: string; size?: 'sm' | 'md
 const DraggableItem = ({
   id, iconType, feedbackState,
 }: { id: string; iconType: string; feedbackState?: 'correct' | 'wrong' | null }) => {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
 
   const mergedStyle: React.CSSProperties = {
-    ...(transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0) scale(1.12) rotate(4deg)`, zIndex: 50 } : {}),
     ...(feedbackState === 'correct' ? { border: '2px solid #10b981', boxShadow: '0 0 18px rgba(16,185,129,0.7), 0 4px 0 #064e3b', background: 'rgba(16,185,129,0.2)' } : {}),
     ...(feedbackState === 'wrong'   ? { border: '2px solid #ef4444', boxShadow: '0 0 16px rgba(239,68,68,0.6)' } : {}),
-    ...(isDragging ? { opacity: 0.85 } : {}),
+    // Ghost when dragging — original stays faint in place
+    ...(isDragging ? { opacity: 0.3 } : {}),
   };
 
   return (
@@ -49,6 +50,22 @@ const DraggableItem = ({
     </motion.div>
   );
 };
+
+// ─── Drag Overlay Item (follows cursor) ─────────────────────────────────────
+const DragOverlayItem = ({ iconType }: { iconType: string }) => (
+  <div
+    className="drag-chip w-16 h-16 flex items-center justify-center touch-none"
+    style={{
+      transform: 'scale(1.15) rotate(4deg)',
+      boxShadow: '0 12px 40px rgba(139,92,246,0.5)',
+      border: '2px solid rgba(139,92,246,0.6)',
+      background: 'rgba(139,92,246,0.18)',
+      cursor: 'grabbing',
+    }}
+  >
+    <EmojiDisplay emoji={iconType} size="md" />
+  </div>
+);
 
 // ─── Droppable Cell ─────────────────────────────────────────────────────────
 const DroppableCell = ({ id, children, size }: { id: string; children: React.ReactNode; size: number }) => {
@@ -385,7 +402,7 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
           <Timer seconds={gameState.timeRemaining} isAnswer={!isMemorize} />
         </div>
 
-        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} autoScroll={false}>
           {/* Grid */}
           <div className="glass-card rounded-3xl p-6 flex items-center justify-center">
             <div className="grid gap-3" style={{ gridTemplateColumns: gridCols }}>
@@ -475,6 +492,15 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
               </motion.div>
             )}
           </AnimatePresence>
+          {/* DragOverlay — renders emoji that follows the cursor */}
+          <DragOverlay dropAnimation={{ duration: 200, easing: 'ease' }}>
+            {activeDragId ? (() => {
+              const fromPool = poolItems.find(i => i.id === activeDragId);
+              const fromPlaced = placedItems.find(i => i.id === activeDragId);
+              const item = fromPool ?? fromPlaced;
+              return item ? <DragOverlayItem iconType={item.iconType} /> : null;
+            })() : null}
+          </DragOverlay>
         </DndContext>
       </div>
 
