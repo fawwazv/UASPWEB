@@ -195,6 +195,22 @@ export default function Home() {
               />
             </div>
 
+            {/* Form Error */}
+            <AnimatePresence>
+              {formError && (
+                <motion.p
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.2 }}
+                  className="text-center text-xs font-bold"
+                  style={{ color: '#f87171' }}
+                >
+                  {formError}
+                </motion.p>
+              )}
+            </AnimatePresence>
+
             {/* Tab Switcher */}
             <div
               className="flex rounded-2xl p-1"
@@ -249,20 +265,6 @@ export default function Home() {
                   >
                     🚀 Buat Room Baru
                   </button>
-                  <AnimatePresence>
-                    {formError && activeTab === 'create' && (
-                      <motion.p
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.2 }}
-                        className="text-center text-xs font-bold mt-2"
-                        style={{ color: '#f87171' }}
-                      >
-                        {formError}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
                 </motion.div>
               ) : activeTab === 'join' ? (
                 <motion.div
@@ -303,20 +305,6 @@ export default function Home() {
                   >
                     ⚡ Gabung Sekarang
                   </button>
-                  <AnimatePresence>
-                    {formError && activeTab === 'join' && (
-                      <motion.p
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.2 }}
-                        className="text-center text-xs font-bold"
-                        style={{ color: '#f87171' }}
-                      >
-                        {formError}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
                 </motion.div>
               ) : (
                 <motion.div
