@@ -391,7 +391,6 @@ export default function Home() {
             gameState={gameState}
             submitAnswer={submitAnswer}
             leaveRoom={leaveRoom}
-            deleteRoom={deleteRoom}
           />
         )}
 
