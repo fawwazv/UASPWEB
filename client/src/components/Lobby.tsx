@@ -118,7 +118,10 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
           )}
         </div>
 
-        <div className="space-y-2">
+        <div 
+          className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3 overflow-y-auto pr-1 md:pr-2 max-h-[250px] md:max-h-[350px]"
+          style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.2) transparent' }}
+        >
           <AnimatePresence>
             {gameState.players.map((player, idx) => {
               const isPlayerHost = player.id === gameState.hostId;
