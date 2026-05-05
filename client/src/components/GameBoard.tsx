@@ -165,9 +165,10 @@ const Timer = ({ seconds }: { seconds: number; isAnswer: boolean }) => {
 interface GameBoardProps {
   gameState: GameState;
   submitAnswer: (items: PlacedItem[], timeRemaining: number) => void;
+  leaveRoom?: () => void;
 }
 
-export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
+export const GameBoard = ({ gameState, submitAnswer, leaveRoom }: GameBoardProps) => {
   const isMemorize = gameState.phase === 'memorize';
   const myId = getSocket().id ?? '';
 
@@ -178,6 +179,8 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
   const [showLevelComplete, setShowLevelComplete] = useState(false);
   const [levelCompleteNum, setLevelCompleteNum] = useState(0);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [isConfirmExitOpen, setIsConfirmExitOpen] = useState(false);
+  const [opponentLeftMessage, setOpponentLeftMessage] = useState('');
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 1 } }));
 
@@ -223,8 +226,16 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
       setShowLevelComplete(true);
       setTimeout(() => setShowLevelComplete(false), 2500);
     };
+    const onOpponentLeft = () => {
+      setOpponentLeftMessage('Lawan telah keluar dari permainan');
+      setTimeout(() => setOpponentLeftMessage(''), 3000);
+    };
     socket.on('level_complete', onLevelComplete);
-    return () => { socket.off('level_complete', onLevelComplete); };
+    socket.on('opponent_left', onOpponentLeft);
+    return () => { 
+      socket.off('level_complete', onLevelComplete); 
+      socket.off('opponent_left', onOpponentLeft);
+    };
   }, []);
 
   // Auto-submit on timer expiry
@@ -360,7 +371,67 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
   const gridCols = `repeat(${gameState.gridSize}, minmax(0, 1fr))`;
 
   return (
-    <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-5">
+    <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-5 relative">
+
+      {/* Opponent Left toast */}
+      <AnimatePresence>
+        {opponentLeftMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -40, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-2xl font-black text-sm md:text-base text-white text-center"
+            style={{ background: 'linear-gradient(135deg,#f43f5e,#fb923c)', boxShadow: '0 8px 30px rgba(244,63,94,0.4)', border: '1px solid rgba(255,255,255,0.2)' }}
+          >
+            ⚠️ {opponentLeftMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirm Exit Modal */}
+      <AnimatePresence>
+        {isConfirmExitOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="glass-card max-w-sm w-full p-6 rounded-3xl text-center space-y-5 shadow-2xl"
+              style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              <div className="text-4xl mb-2">🚪</div>
+              <h3 className="text-xl font-black text-white">Keluar dari Permainan?</h3>
+              <p className="text-sm font-bold text-gray-300">
+                Apakah Anda yakin ingin keluar? Permainan sedang berlangsung.
+              </p>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setIsConfirmExitOpen(false)}
+                  className="flex-1 btn-3d py-2.5 text-sm"
+                  style={{ background: 'rgba(255,255,255,0.1)', color: 'white' }}
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={() => {
+                    setIsConfirmExitOpen(false);
+                    if (leaveRoom) leaveRoom();
+                  }}
+                  className="flex-1 btn-3d btn-red py-2.5 text-sm"
+                >
+                  Ya, Keluar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Level-Complete toast */}
       <AnimatePresence>
@@ -380,8 +451,8 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
 
       <div className="space-y-4">
         {/* Header: level + phase + timer */}
-        <div className="glass-card rounded-3xl px-6 py-4 flex justify-between items-center">
-          <div className="space-y-1">
+        <div className="glass-card rounded-3xl px-6 py-4 flex justify-between items-center gap-4">
+          <div className="space-y-1 flex-1">
             <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-2xl font-black text-white">Level {gameState.currentLevel}</h2>
               <span
@@ -397,7 +468,15 @@ export const GameBoard = ({ gameState, submitAnswer }: GameBoardProps) => {
               Grid {gameState.gridSize}×{gameState.gridSize} · {gameState.gridSize * gameState.gridSize} emoji
             </p>
           </div>
-          <Timer seconds={gameState.timeRemaining} isAnswer={!isMemorize} />
+          <div className="flex items-center gap-4 md:gap-6 shrink-0">
+            <Timer seconds={gameState.timeRemaining} isAnswer={!isMemorize} />
+            <button
+              onClick={() => setIsConfirmExitOpen(true)}
+              className="btn-3d btn-red px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm shrink-0"
+            >
+              ✕ Keluar
+            </button>
+          </div>
         </div>
 
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} autoScroll={false}>

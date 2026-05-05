@@ -390,6 +390,8 @@ export default function Home() {
             key="game"
             gameState={gameState}
             submitAnswer={submitAnswer}
+            leaveRoom={leaveRoom}
+            deleteRoom={deleteRoom}
           />
         )}
 

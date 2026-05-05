@@ -141,11 +141,20 @@ export class GameRoom {
 
   public async removePlayer(id: string) {
     this.players.delete(id);
+    this.answersSubmitted.delete(id);
+    
     if (id === this.hostId && this.players.size > 0) {
       this.hostId = this.players.keys().next().value!;
     }
     this.broadcastState();
     await this.saveState();
+
+    if (this.status === 'playing' && this.currentPhase === 'answer') {
+      if (this.players.size > 0 && this.answersSubmitted.size >= this.players.size) {
+        this.clearPhaseTimer();
+        await this.evaluateLevel();
+      }
+    }
   }
 
   public getPlayers() {
