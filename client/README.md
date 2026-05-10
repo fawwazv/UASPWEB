@@ -1,36 +1,128 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Memory Hack - Client
 
-## Getting Started
+Frontend dari game **Memory Hack**, dibangun dengan Next.js 15 dan React 19. Tampil sebagai aplikasi web yang responsif dengan tema dark mode dan animasi menggunakan Framer Motion.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Tech Stack
+
+| Teknologi | Keterangan |
+|-----------|------------|
+| Next.js 15 (App Router) | Framework React utama |
+| React 19 | Library UI |
+| TypeScript | Bahasa utama |
+| Tailwind CSS v4 | Styling utama |
+| Vanilla CSS (Custom Properties) | Token warna dan efek kustom |
+| Framer Motion | Animasi dan transisi halaman |
+| @dnd-kit/core | Mekanik drag & drop |
+| socket.io-client | Koneksi real-time ke backend |
+
+---
+
+## Struktur Folder
+
+```
+client/
+├── src/
+│   ├── app/
+│   │   ├── page.tsx          # halaman utama (home screen + modal setting room)
+│   │   ├── layout.tsx        # root layout
+│   │   └── globals.css       # CSS global dan token warna
+│   ├── components/
+│   │   ├── Lobby.tsx         # komponen ruang tunggu
+│   │   └── GameBoard.tsx     # komponen papan game (memorize + answer phase)
+│   ├── hooks/
+│   │   └── useGameLogic.ts   # hook utama, handle semua event socket dan state game
+│   └── lib/
+│       └── socket.ts         # inisialisasi koneksi socket.io
+├── public/                   # aset statis
+├── .env.example              # contoh environment variables
+└── package.json
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Cara Setup dan Jalankan
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Prasyarat
+- Node.js v18 atau lebih baru
+- Backend server sudah berjalan (lihat `../server/README.md`)
 
-## Learn More
+### Install dependensi
+```bash
+npm install
+```
 
-To learn more about Next.js, take a look at the following resources:
+### Konfigurasi environment
+Salin `.env.example` menjadi `.env.local` lalu isi sesuai kebutuhan:
+```bash
+cp .env.example .env.local
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Isi variabel berikut:
+```env
+# URL backend socket server, default ke localhost:3001 kalau tidak diisi
+NEXT_PUBLIC_SOCKET_URL=http://localhost:3001
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Jalankan development server
+```bash
+npm run dev
+```
 
-## Deploy on Vercel
+Buka [http://localhost:3000](http://localhost:3000) di browser.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Build production
+```bash
+npm run build
+npm start
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Environment Variables
+
+| Variable | Keterangan | Default |
+|----------|------------|---------|
+| `NEXT_PUBLIC_SOCKET_URL` | URL backend socket server | `http://localhost:3001` |
+
+---
+
+## Alur Aplikasi
+
+```
+Home Screen
+├── Tab "Buat"   → isi nama → klik "Buat Room" → modal Setting Room → konfirmasi → Lobby
+├── Tab "Gabung" → isi nama + kode room → langsung masuk Lobby
+└── Tab "Publik" → pilih room dari daftar → langsung masuk Lobby
+
+Lobby (Ruang Tunggu)
+├── Host: menunggu semua player ready, lalu klik "Mulai Permainan"
+└── Player: klik "Siap" untuk menandakan siap bermain
+
+Game Board
+├── Fase Memorize: lihat dan hafal posisi emoji di grid
+└── Fase Answer: drag & drop emoji ke posisi yang benar sebelum waktu habis
+
+Layar Akhir (Game Over)
+└── Leaderboard akhir + tombol kembali ke home
+```
+
+---
+
+## Deploy ke Vercel
+
+1. Hubungkan repository ke Vercel
+2. Set **Root Directory** ke folder `client`
+3. Framework preset otomatis terdeteksi sebagai Next.js
+4. Tambahkan environment variable:
+   - `NEXT_PUBLIC_SOCKET_URL` → URL backend Railway (contoh: `https://memory-hack-server.up.railway.app`)
+5. Deploy
+
+---
+
+## Catatan Development
+
+- File `globals.css` mendefinisikan semua CSS custom properties (warna, efek glow, class `btn-3d`, `glass-card`, dll.)
+- Socket diinisialisasi sekali di `lib/socket.ts` dan diakses via `getSocket()` — singleton pattern supaya tidak ada multiple connection
+- `useGameLogic.ts` adalah pusat state management game, semua socket event dihandle di sini

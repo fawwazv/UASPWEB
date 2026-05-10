@@ -15,6 +15,14 @@ export interface PlacedItem {
   col: number;
 }
 
+// settings room yang dipilih host sebelum buat room
+export interface RoomSettings {
+  maxLevel: 5 | 8 | 10;
+  maxPlayers: number | null;
+  hostIsSpectator: boolean;
+  isPrivate: boolean;
+}
+
 export interface GameState {
   roomId: string | null;
   hostId: string | null;
@@ -29,6 +37,10 @@ export interface GameState {
   itemsToMemorize: PlacedItem[];
   countdown: number;
   finalLeaderboard: Player[];
+  // info setting room, datang dari server lewat room_state
+  maxLevel: number;
+  maxPlayers: number | null;
+  hostIsSpectator: boolean;
 }
 
 export const useGameLogic = () => {
@@ -37,6 +49,7 @@ export const useGameLogic = () => {
     currentLevel: 1, gridSize: 2, phase: 'memorize',
     timeRemaining: 0, memorizeTime: 8, answerTime: 20,
     itemsToMemorize: [], countdown: 3, finalLeaderboard: [],
+    maxLevel: 10, maxPlayers: null, hostIsSpectator: false,
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -49,13 +62,25 @@ export const useGameLogic = () => {
     const onConnect    = () => setIsSocketConnected(true);
     const onDisconnect = () => setIsSocketConnected(false);
 
-    const onRoomState = (data: { roomId: string; status: 'lobby' | 'countdown' | 'playing' | 'ended'; players: Player[]; hostId?: string }) => {
+    const onRoomState = (data: {
+      roomId: string;
+      status: 'lobby' | 'countdown' | 'playing' | 'ended';
+      players: Player[];
+      hostId?: string;
+      maxLevel?: number;
+      maxPlayers?: number | null;
+      hostIsSpectator?: boolean;
+    }) => {
       setGameState(prev => ({
         ...prev,
         roomId:  data.roomId,
         status:  data.status,
         players: data.players,
         hostId:  data.hostId ?? prev.hostId,
+        // update setting kalau ada dari server
+        maxLevel: data.maxLevel ?? prev.maxLevel,
+        maxPlayers: data.maxPlayers !== undefined ? data.maxPlayers : prev.maxPlayers,
+        hostIsSpectator: data.hostIsSpectator ?? prev.hostIsSpectator,
       }));
     };
 
@@ -106,16 +131,16 @@ export const useGameLogic = () => {
       setError('Room telah dibubarkan oleh Host');
     };
 
-    socket.on('connect',           onConnect);
-    socket.on('disconnect',        onDisconnect);
-    socket.on('room_state',        onRoomState);
-    socket.on('game_countdown',    onGameCountdown);
-    socket.on('level_start',       onLevelStart);
-    socket.on('phase_sync',        onPhaseSync);
-    socket.on('leaderboard_update',onLeaderboardUpdate);
-    socket.on('game_over',         onGameOver);
-    socket.on('error',             onError);
-    socket.on('room_deleted',      onRoomDeleted);
+    socket.on('connect',            onConnect);
+    socket.on('disconnect',         onDisconnect);
+    socket.on('room_state',         onRoomState);
+    socket.on('game_countdown',     onGameCountdown);
+    socket.on('level_start',        onLevelStart);
+    socket.on('phase_sync',         onPhaseSync);
+    socket.on('leaderboard_update', onLeaderboardUpdate);
+    socket.on('game_over',          onGameOver);
+    socket.on('error',              onError);
+    socket.on('room_deleted',       onRoomDeleted);
 
     return () => {
       socket.off('connect',            onConnect);
@@ -131,9 +156,10 @@ export const useGameLogic = () => {
     };
   }, []);
 
-  const createRoom = (callback?: (roomId: string) => void, isPrivate: boolean = false) => {
+  // buat room baru dengan settings dari host
+  const createRoom = (settings: RoomSettings, callback?: (roomId: string) => void) => {
     setError(null);
-    getSocket().emit('create_room', { isPrivate }, (res: { roomId?: string }) => {
+    getSocket().emit('create_room', settings, (res: { roomId?: string }) => {
       if (res.roomId && callback) callback(res.roomId);
     });
   };

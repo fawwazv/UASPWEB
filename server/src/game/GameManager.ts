@@ -1,21 +1,29 @@
 import { redisClient } from '../redis';
-import { GameRoom, GameRoomState } from './GameRoom';
+import { GameRoom, GameRoomState, RoomSettings } from './GameRoom';
 
 export interface PublicRoomInfo {
   roomId: string;
   hostName: string;
   playerCount: number;
+  maxPlayers: number | null;
+  maxLevel: number;
 }
 
 export class GameManager {
   private localRooms: Map<string, GameRoom> = new Map();
 
-  public async createRoom(isPrivate: boolean = false): Promise<string> {
+  // buat room baru, terima settings dari host
+  public async createRoom(settings: Partial<RoomSettings> = {}): Promise<string> {
     const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     const room = new GameRoom(roomId);
-    room.isPrivate = isPrivate;
+
+    // terapkan setting dari host, pakai default kalau tidak diisi
+    room.isPrivate = settings.isPrivate ?? false;
+    room.maxLevel = settings.maxLevel ?? 10;
+    room.maxPlayers = settings.maxPlayers ?? null;
+    room.hostIsSpectator = settings.hostIsSpectator ?? false;
     
-    // Inject save hook so GameRoom can save its state automatically
+    // inject save hook supaya GameRoom bisa simpan state-nya sendiri
     room.setSaveHandler(async (state) => {
       await this.saveRoomState(roomId, state);
     });
@@ -31,6 +39,7 @@ export class GameManager {
       if (stateStr) {
         const state = JSON.parse(stateStr) as GameRoomState;
         
+        // kalau room sudah ada di memory lokal, pakai yang itu
         let room = this.localRooms.get(roomId);
         if (!room) {
           room = new GameRoom(roomId);
@@ -40,7 +49,7 @@ export class GameManager {
           this.localRooms.set(roomId, room);
         }
         
-        // Rehydrate
+        // hydrate dari data redis
         room.setState(state);
         return room;
       }
@@ -67,6 +76,8 @@ export class GameManager {
                 roomId: state.id,
                 hostName: host ? host.name : 'Unknown',
                 playerCount,
+                maxPlayers: state.maxPlayers ?? null,
+                maxLevel: state.maxLevel ?? 10,
               });
             }
           }
@@ -81,6 +92,8 @@ export class GameManager {
             roomId,
             hostName: host ? host.name : 'Unknown',
             playerCount,
+            maxPlayers: room.maxPlayers,
+            maxLevel: room.maxLevel,
           });
         }
       }
@@ -91,7 +104,7 @@ export class GameManager {
 
   private async saveRoomState(roomId: string, state: GameRoomState): Promise<void> {
     if (redisClient) {
-      // 2 hours expiration for inactive rooms
+      // simpan 2 jam, cukup untuk satu sesi game
       await redisClient.setEx(`room:${roomId}`, 7200, JSON.stringify(state));
     }
   }
@@ -102,7 +115,8 @@ export class GameManager {
     }
     const room = this.localRooms.get(roomId);
     if (room) {
-      room.cleanup(); // To clear any intervals
+      // bersihkan interval yang masih jalan
+      room.cleanup();
     }
     this.localRooms.delete(roomId);
   }

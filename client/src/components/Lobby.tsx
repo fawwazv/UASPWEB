@@ -12,7 +12,7 @@ interface LobbyProps {
   deleteRoom: () => void;
 }
 
-// Deterministic color per player based on their name's char code sum
+// warna berbeda untuk tiap player berdasarkan urutan masuk
 const PLAYER_COLORS = [
   { bg: 'rgba(139,92,246,0.25)', border: 'rgba(139,92,246,0.6)', text: '#a78bfa', shadow: 'rgba(139,92,246,0.3)' },
   { bg: 'rgba(6,182,212,0.2)',   border: 'rgba(6,182,212,0.6)',   text: '#67e8f9', shadow: 'rgba(6,182,212,0.3)' },
@@ -26,7 +26,7 @@ function getPlayerColor(idx: number) {
   return PLAYER_COLORS[idx % PLAYER_COLORS.length];
 }
 
-// Avatar initials with color
+// avatar inisial nama pemain
 const PlayerAvatar = ({ name, idx }: { name: string; idx: number }) => {
   const color = getPlayerColor(idx);
   return (
@@ -48,6 +48,10 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
   const readyCount = nonHostPlayers.filter(p => p.isReady).length;
   const canStart = nonHostPlayers.length > 0 && readyCount === nonHostPlayers.length;
 
+  // label singkat batas level untuk ditampilkan di info room
+  const levelLabel = `s/d Level ${gameState.maxLevel}`;
+  const playersLabel = gameState.maxPlayers ? `Maks. ${gameState.maxPlayers} pemain` : 'Pemain tak terbatas';
+
   return (
     <motion.div
       key="lobby"
@@ -57,7 +61,7 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
       transition={{ type: 'spring', stiffness: 260, damping: 24 }}
       className="relative glass-card rounded-3xl p-6 md:p-8 w-full max-w-xl space-y-5 md:space-y-6"
     >
-      {/* ── Header ───────────────────────────────────────────────────────── */}
+      {/* header ruang tunggu */}
       <div className="flex justify-between items-start">
         <div className="space-y-1">
           <h2 className="text-2xl md:text-3xl font-black text-white">Ruang Tunggu</h2>
@@ -83,7 +87,7 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
             onClick={deleteRoom}
             className="btn-3d btn-red px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm"
           >
-            🗑️ Hapus Room
+            Hapus Room
           </button>
         ) : (
           <button
@@ -91,21 +95,36 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
             onClick={leaveRoom}
             className="btn-3d btn-red px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm"
           >
-            ✕ Keluar
+            Keluar
           </button>
         )}
       </div>
 
-      {/* ── Share hint ───────────────────────────────────────────────────── */}
+      {/* info setting room */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="text-center p-2 rounded-xl" style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--txt-faint)' }}>Level</p>
+          <p className="text-xs font-black text-white mt-0.5">{levelLabel}</p>
+        </div>
+        <div className="text-center p-2 rounded-xl" style={{ background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)' }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--txt-faint)' }}>Kapasitas</p>
+          <p className="text-xs font-black text-white mt-0.5">{playersLabel}</p>
+        </div>
+        <div className="text-center p-2 rounded-xl" style={{ background: 'rgba(236,72,153,0.08)', border: '1px solid rgba(236,72,153,0.2)' }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--txt-faint)' }}>Mode Host</p>
+          <p className="text-xs font-black text-white mt-0.5">{gameState.hostIsSpectator ? 'Spectate' : 'Bermain'}</p>
+        </div>
+      </div>
+
+      {/* hint berbagi kode */}
       <div
         className="flex items-center gap-2 md:gap-3 rounded-2xl px-3 py-2 md:px-4 md:py-3 text-xs md:text-sm font-bold"
         style={{ background: 'rgba(6,182,212,0.08)', border: '1.5px solid rgba(6,182,212,0.2)', color: 'var(--clr-cyan-lt)' }}
       >
-        <span className="text-base md:text-lg">💡</span>
         <span>Bagikan kode room ke temanmu agar mereka bisa bergabung!</span>
       </div>
 
-      {/* ── Player List ──────────────────────────────────────────────────── */}
+      {/* daftar pemain */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: 'var(--txt-muted)' }}>
@@ -118,7 +137,7 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
           )}
         </div>
 
-        <div 
+        <div
           className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3 overflow-y-auto pr-1 md:pr-2 max-h-[250px] md:max-h-[350px]"
           style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.2) transparent' }}
         >
@@ -161,13 +180,22 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
                           className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
                           style={{ background: 'rgba(245,158,11,0.2)', border: '1px solid rgba(245,158,11,0.5)', color: '#fcd34d' }}
                         >
-                          👑 Host
+                          Host
+                        </span>
+                      )}
+                      {/* badge spectator kalau host pilih mode spectate */}
+                      {isPlayerHost && gameState.hostIsSpectator && (
+                        <span
+                          className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                          style={{ background: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.4)', color: '#67e8f9' }}
+                        >
+                          Spectate
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Ready status badge */}
+                  {/* status siap/belum */}
                   <div
                     className="text-[10px] md:text-xs font-black px-2 py-1 md:px-3 md:py-1.5 rounded-xl shrink-0"
                     style={
@@ -178,7 +206,7 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
                         : { background: 'rgba(255,255,255,0.05)', color: 'var(--txt-faint)' }
                     }
                   >
-                    {isPlayerHost ? '⚡ Host' : player.isReady ? '✓ Siap' : '⏳ Belum'}
+                    {isPlayerHost ? 'Host' : player.isReady ? 'Siap' : 'Belum'}
                   </div>
                 </motion.div>
               );
@@ -193,7 +221,7 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
         </div>
       </div>
 
-      {/* ── Action Buttons ───────────────────────────────────────────────── */}
+      {/* tombol aksi: host bisa mulai, player bisa ready */}
       <div className="pt-2">
         {isHost ? (
           <div className="space-y-3">
@@ -215,16 +243,15 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
                     }
               }
             >
-              {/* We can't use btn-green class with disabled conditional so use inline style */}
               {canStart ? (
                 <span
                   className="btn-3d btn-green w-full py-3 md:py-4 text-sm md:text-base block"
                   style={{ pointerEvents: 'none' }}
                 >
-                  ▶ Mulai Permainan!
+                  Mulai Permainan
                 </span>
               ) : (
-                `⏳ ${readyCount}/${nonHostPlayers.length} pemain siap...`
+                `${readyCount}/${nonHostPlayers.length} pemain siap...`
               )}
             </button>
             {!canStart && nonHostPlayers.length === 0 && (
@@ -240,12 +267,12 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
             whileTap={{ scale: 0.97 }}
             className={`btn-3d w-full py-3 md:py-4 text-sm md:text-base ${myPlayer?.isReady ? 'btn-green' : 'btn-purple'}`}
           >
-            {myPlayer?.isReady ? '✓ Siap! (Klik untuk batal)' : '🙋 Klik untuk Siap'}
+            {myPlayer?.isReady ? 'Siap! (klik untuk batal)' : 'Klik untuk Siap'}
           </motion.button>
         )}
       </div>
 
-      {/* ── Countdown Overlay ────────────────────────────────────────────── */}
+      {/* overlay countdown saat game mau mulai */}
       <AnimatePresence>
         {gameState.status === 'countdown' && (
           <motion.div

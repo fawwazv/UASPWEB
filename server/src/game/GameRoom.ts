@@ -14,6 +14,14 @@ export interface PlacedItem {
   col: number;
 }
 
+// Settings room yang dibuat oleh host sebelum masuk lobby
+export interface RoomSettings {
+  maxLevel: 5 | 8 | 10;       // sampai level berapa game berjalan
+  maxPlayers: number | null;   // null = tidak ada batas
+  hostIsSpectator: boolean;    // true = host hanya nonton, false = ikut main
+  isPrivate: boolean;          // apakah room disembunyikan dari daftar publik
+}
+
 export interface GameRoomState {
   id: string;
   hostId: string;
@@ -28,6 +36,10 @@ export interface GameRoomState {
   currentAnswerTime: number;
   answersSubmitted: Record<string, PlacedItem[]>;
   levelEvaluated: boolean;
+  // setting room
+  maxLevel: number;
+  maxPlayers: number | null;
+  hostIsSpectator: boolean;
 }
 
 const EMOJI_POOL = [
@@ -37,6 +49,7 @@ const EMOJI_POOL = [
   '⚡','🔥','💧','🌊','🌈','☄️','🌙','⭐',
 ];
 
+// waktu menghafal naik seiring level
 export function getMemorizeTime(level: number): number {
   if (level <= 2) return 8;
   if (level <= 5) return 10 + (level - 3) * 3;
@@ -44,6 +57,7 @@ export function getMemorizeTime(level: number): number {
   return 35 + (level - 9) * 5;
 }
 
+// waktu menjawab juga makin panjang di level tinggi
 export function getAnswerTime(level: number): number {
   if (level <= 2) return 20;
   if (level <= 5) return 30 + (level - 3) * 5;
@@ -51,6 +65,7 @@ export function getAnswerTime(level: number): number {
   return 75 + (level - 9) * 10;
 }
 
+// ukuran grid sesuai level, mulai 2x2 sampai 5x5
 export function getGridSize(level: number): number {
   if (level <= 2) return 2;
   if (level <= 5) return 3;
@@ -68,6 +83,11 @@ export class GameRoom {
   public currentPhase: 'memorize' | 'answer' = 'memorize';
   public itemsToMemorize: PlacedItem[] = [];
   public gridSize: number = 2;
+
+  // setting room dari host
+  public maxLevel: number = 10;
+  public maxPlayers: number | null = null;
+  public hostIsSpectator: boolean = false;
 
   private phaseTimer: NodeJS.Timeout | null = null;
   private timeRemaining: number = 0;
@@ -107,6 +127,9 @@ export class GameRoom {
       currentAnswerTime: this.currentAnswerTime,
       answersSubmitted: Object.fromEntries(this.answersSubmitted),
       levelEvaluated: this.levelEvaluated,
+      maxLevel: this.maxLevel,
+      maxPlayers: this.maxPlayers,
+      hostIsSpectator: this.hostIsSpectator,
     };
   }
 
@@ -124,13 +147,23 @@ export class GameRoom {
     this.currentAnswerTime = state.currentAnswerTime;
     this.answersSubmitted = new Map(Object.entries(state.answersSubmitted));
     this.levelEvaluated = state.levelEvaluated;
+    this.maxLevel = state.maxLevel ?? 10;
+    this.maxPlayers = state.maxPlayers ?? null;
+    this.hostIsSpectator = state.hostIsSpectator ?? false;
   }
 
   public setIo(io: Server) {
     this.io = io;
   }
 
+  // cek apakah room masih bisa menerima pemain baru
+  public isFull(): boolean {
+    if (this.maxPlayers === null) return false;
+    return this.players.size >= this.maxPlayers;
+  }
+
   public async addPlayer(id: string, name: string) {
+    // player pertama otomatis jadi host
     if (this.players.size === 0) {
       this.hostId = id;
     }
@@ -143,14 +176,17 @@ export class GameRoom {
     this.players.delete(id);
     this.answersSubmitted.delete(id);
     
+    // kalau yang keluar adalah host, tunjuk player berikutnya
     if (id === this.hostId && this.players.size > 0) {
       this.hostId = this.players.keys().next().value!;
     }
     this.broadcastState();
     await this.saveState();
 
+    // kalau fase jawaban dan semua sudah submit, langsung evaluasi
     if (this.status === 'playing' && this.currentPhase === 'answer') {
-      if (this.players.size > 0 && this.answersSubmitted.size >= this.players.size) {
+      const activePlayers = this.getActivePlayers();
+      if (activePlayers.length > 0 && this.answersSubmitted.size >= activePlayers.length) {
         this.clearPhaseTimer();
         await this.evaluateLevel();
       }
@@ -161,7 +197,16 @@ export class GameRoom {
     return Array.from(this.players.values());
   }
 
+  // pemain aktif = semua player, tapi kalau host spectator, host tidak dihitung
+  public getActivePlayers() {
+    if (this.hostIsSpectator) {
+      return this.getPlayers().filter(p => p.id !== this.hostId);
+    }
+    return this.getPlayers();
+  }
+
   public async toggleReady(id: string) {
+    // host tidak perlu ready
     if (id === this.hostId) return;
     const player = this.players.get(id);
     if (player) {
@@ -172,6 +217,7 @@ export class GameRoom {
   }
 
   public canStart(): boolean {
+    // non-host players = semua yang bukan host
     const nonHostPlayers = this.getPlayers().filter(p => p.id !== this.hostId);
     return nonHostPlayers.length > 0 && nonHostPlayers.every(p => p.isReady);
   }
@@ -179,6 +225,7 @@ export class GameRoom {
   public async startGame() {
     this.status = 'countdown';
     this.currentLevel = 1;
+    // reset skor semua player
     this.getPlayers().forEach(p => (p.score = 0));
     this.broadcastState();
     await this.saveState();
@@ -262,19 +309,17 @@ export class GameRoom {
         timeRemaining: this.timeRemaining,
       });
 
-      // To prevent spamming Redis every second, we might not await this.saveState() here, 
-      // but for accuracy and cross-node sync we will do it every few seconds or only at transitions.
-      // For now, let's keep it simple and just do it at phase transitions to avoid overloading Redis.
-      
       if (this.timeRemaining <= 0) {
         this.clearPhaseTimer();
 
         if (this.currentPhase === 'memorize') {
+          // waktu hafal habis, masuk fase jawab
           this.currentPhase = 'answer';
           this.timeRemaining = answerTime;
           await this.saveState();
           this.startPhaseTimer(memorizeTime, answerTime);
         } else {
+          // waktu jawab habis, evaluasi hasil level ini
           await this.evaluateLevel();
         }
       }
@@ -286,6 +331,9 @@ export class GameRoom {
     placedItems: PlacedItem[],
     timeRemainingAtSubmit: number,
   ) {
+    // host spectator tidak bisa submit
+    if (this.hostIsSpectator && playerId === this.hostId) return;
+
     if (
       this.status !== 'playing' ||
       this.currentPhase !== 'answer' ||
@@ -325,7 +373,9 @@ export class GameRoom {
       await this.saveState();
     }
 
-    if (this.answersSubmitted.size >= this.players.size) {
+    // pakai getActivePlayers() supaya host spectator tidak ikut dihitung
+    const activePlayers = this.getActivePlayers();
+    if (this.answersSubmitted.size >= activePlayers.length) {
       this.clearPhaseTimer();
       await this.evaluateLevel();
     }
@@ -346,7 +396,8 @@ export class GameRoom {
 
     this.broadcastLeaderboard();
 
-    if (this.currentLevel >= 10) {
+    // game selesai kalau sudah mencapai maxLevel yang ditentukan host
+    if (this.currentLevel >= this.maxLevel) {
       this.status = 'ended';
       this.broadcastState();
       this.io?.to(this.id).emit('game_over', {
@@ -361,6 +412,7 @@ export class GameRoom {
         nextLevel: this.currentLevel + 1,
       });
       await this.saveState();
+      // jeda 3 detik sebelum level berikutnya
       setTimeout(async () => {
         this.currentLevel++;
         await this.startLevel();
@@ -374,12 +426,16 @@ export class GameRoom {
       status: this.status,
       players: this.getPlayers(),
       hostId: this.hostId,
+      maxLevel: this.maxLevel,
+      maxPlayers: this.maxPlayers,
+      hostIsSpectator: this.hostIsSpectator,
     });
   }
 
   private generateGrid(totalCells: number, gridSize: number): PlacedItem[] {
     const items: PlacedItem[] = [];
 
+    // bikin semua posisi di grid
     const positions: { row: number; col: number }[] = [];
     for (let r = 0; r < gridSize; r++) {
       for (let c = 0; c < gridSize; c++) {
@@ -387,11 +443,13 @@ export class GameRoom {
       }
     }
 
+    // acak posisi
     for (let i = positions.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [positions[i], positions[j]] = [positions[j], positions[i]];
     }
 
+    // acak emoji
     const shuffledEmojis = [...EMOJI_POOL];
     for (let i = shuffledEmojis.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));

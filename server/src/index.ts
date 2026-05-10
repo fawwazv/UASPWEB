@@ -8,6 +8,7 @@ import { redisClient } from './redis';
 
 const app = express();
 
+// baca CORS origin dari env, bersihkan trailing slash kalau ada
 const rawCorsOrigin = process.env.CORS_ORIGIN || process.env.CLIENT_URL || '*';
 const corsOrigin = rawCorsOrigin !== '*' && rawCorsOrigin.endsWith('/') 
   ? rawCorsOrigin.slice(0, -1) 
@@ -16,9 +17,9 @@ const corsOrigin = rawCorsOrigin !== '*' && rawCorsOrigin.endsWith('/')
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
-// Health check endpoint for Railway
+// endpoint health check untuk Railway
 app.get('/', (_req, res) => {
-  res.json({ status: 'ok', message: 'Memory Hack Server is running 🧠' });
+  res.json({ status: 'ok', message: 'Memory Hack Server is running' });
 });
 
 const httpServer = createServer(app);
@@ -37,13 +38,14 @@ const startServer = async () => {
       const subClient = redisClient.duplicate();
       await subClient.connect();
       
+      // pakai redis adapter supaya bisa multi-instance (horizontal scaling)
       io.adapter(createAdapter(redisClient, subClient));
-      console.log('✅ Redis Adapter initialized');
+      console.log('Redis adapter aktif');
     } catch (err) {
-      console.error('❌ Failed to initialize Redis Adapter', err);
+      console.error('Gagal koneksi ke Redis:', err);
     }
   } else {
-    console.log('⚠️ REDIS_URL not provided, falling back to in-memory adapter');
+    console.log('REDIS_URL tidak ada, pakai in-memory adapter');
   }
 
   io.on('connection', (socket) => {
@@ -53,8 +55,8 @@ const startServer = async () => {
   const PORT = process.env.PORT || 3001;
 
   httpServer.listen(PORT, () => {
-    console.log(`🚀 Memory Hack server running on port ${PORT}`);
-    console.log(`   CORS origin: ${corsOrigin}`);
+    console.log(`Server berjalan di port ${PORT}`);
+    console.log(`CORS origin: ${corsOrigin}`);
   });
 };
 

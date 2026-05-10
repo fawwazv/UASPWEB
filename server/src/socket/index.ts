@@ -1,6 +1,8 @@
 import { Server, Socket } from 'socket.io';
 import { gameManager } from '../game/GameManager';
+import { RoomSettings } from '../game/GameRoom';
 
+// kirim daftar room publik ke semua client yang terhubung
 const broadcastPublicRooms = async (io: Server) => {
   const rooms = await gameManager.getPublicRooms();
   io.emit('public_rooms_updated', rooms);
@@ -9,8 +11,7 @@ const broadcastPublicRooms = async (io: Server) => {
 export const handleSocketConnection = (io: Server, socket: Socket) => {
   console.log(`User connected: ${socket.id}`);
 
-  // In a distributed Redis setup, userRooms map is local. 
-  // It's okay because socket connections are also local to this node.
+  // map untuk lacak user ini ada di room mana (lokal per koneksi)
   const userRooms = new Map<string, string>(); 
 
   socket.on('get_public_rooms', async (callback) => {
@@ -19,17 +20,19 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
     }
   });
 
+  // host buat room baru, kirim settings dari modal setting room
   socket.on('create_room', async (arg1, arg2) => {
-    let isPrivate = false;
+    let settings: Partial<RoomSettings> = {};
     let callback;
+
     if (typeof arg1 === 'function') {
       callback = arg1;
     } else {
-      isPrivate = arg1?.isPrivate || false;
+      settings = arg1 || {};
       callback = arg2;
     }
 
-    const roomId = await gameManager.createRoom(isPrivate);
+    const roomId = await gameManager.createRoom(settings);
     const room = await gameManager.getRoom(roomId);
     if (room) {
       room.setIo(io);
@@ -37,7 +40,8 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
     if (typeof callback === 'function') {
       callback({ roomId });
     }
-    if (!isPrivate) {
+    // kalau publik, update daftar room untuk semua
+    if (!settings.isPrivate) {
       await broadcastPublicRooms(io);
     }
   });
@@ -45,12 +49,18 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
   socket.on('join_room', async ({ roomId, playerName }, callback) => {
     const room = await gameManager.getRoom(roomId);
     if (!room) {
-      if (typeof callback === 'function') callback({ error: 'Room not found' });
+      if (typeof callback === 'function') callback({ error: 'Room tidak ditemukan' });
       return;
     }
 
     if (room.status !== 'lobby') {
-      if (typeof callback === 'function') callback({ error: 'Game already started' });
+      if (typeof callback === 'function') callback({ error: 'Game sudah dimulai' });
+      return;
+    }
+
+    // cek apakah room sudah penuh
+    if (room.isFull()) {
+      if (typeof callback === 'function') callback({ error: 'Room sudah penuh' });
       return;
     }
 
@@ -79,8 +89,9 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
   socket.on('game_start', async ({ roomId }) => {
     const room = await gameManager.getRoom(roomId);
     if (!room) return;
-    if (room.hostId !== socket.id) return; 
-    if (!room.canStart()) return;          
+    // hanya host yang bisa mulai game
+    if (room.hostId !== socket.id) return;
+    if (!room.canStart()) return;
     room.setIo(io);
     await room.startGame();
   });
@@ -100,6 +111,7 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
       const wasPrivate = room.isPrivate;
 
       if (isPlaying) {
+        // kalau lagi main, keluarkan host dan lanjutkan game
         await room.removePlayer(socket.id);
         socket.leave(roomId);
         userRooms.delete(socket.id);
@@ -110,6 +122,7 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
           io.to(roomId).emit('opponent_left', { playerId: socket.id });
         }
       } else {
+        // kalau di lobby, bubarkan room dan usir semua player
         io.to(roomId).emit('room_deleted');
         await gameManager.removeRoom(roomId);
         io.socketsLeave(roomId);
@@ -130,6 +143,7 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
       const isPlaying = room.status === 'playing';
 
       if (isHost && !isPlaying) {
+        // host keluar saat lobby = bubarkan room
         io.to(roomId).emit('room_deleted');
         await gameManager.removeRoom(roomId);
         io.socketsLeave(roomId);
