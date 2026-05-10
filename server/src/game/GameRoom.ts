@@ -219,7 +219,9 @@ export class GameRoom {
   public canStart(): boolean {
     // non-host players = semua yang bukan host
     const nonHostPlayers = this.getPlayers().filter(p => p.id !== this.hostId);
-    return nonHostPlayers.length > 0 && nonHostPlayers.every(p => p.isReady);
+    // kalau host spectate, minimal harus 2 pemain biar ga main sendirian
+    const minPlayers = this.hostIsSpectator ? 2 : 1;
+    return nonHostPlayers.length >= minPlayers && nonHostPlayers.every(p => p.isReady);
   }
 
   public async startGame() {
@@ -230,7 +232,10 @@ export class GameRoom {
     this.broadcastState();
     await this.saveState();
 
+    // kirim angka 3 dulu, baru mulai interval untuk 2 dan 1
     let countdown = 3;
+    this.io?.to(this.id).emit('game_countdown', { count: countdown });
+
     const interval = setInterval(async () => {
       countdown--;
       if (countdown > 0) {

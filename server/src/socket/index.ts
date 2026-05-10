@@ -86,12 +86,27 @@ export const handleSocketConnection = (io: Server, socket: Socket) => {
     }
   });
 
-  socket.on('game_start', async ({ roomId }) => {
+  socket.on('game_start', async ({ roomId }, callback) => {
     const room = await gameManager.getRoom(roomId);
-    if (!room) return;
-    // hanya host yang bisa mulai game
-    if (room.hostId !== socket.id) return;
-    if (!room.canStart()) return;
+    if (!room) {
+      socket.emit('error', { message: 'Room tidak ditemukan' });
+      return;
+    }
+    if (room.hostId !== socket.id) {
+      socket.emit('error', { message: 'Hanya host yang bisa memulai game' });
+      return;
+    }
+    if (!room.canStart()) {
+      // kasih tahu alasan gagal supaya user tidak bingung
+      const nonHost = room.getPlayers().filter(p => p.id !== room.hostId);
+      const minPlayers = room.hostIsSpectator ? 2 : 1;
+      if (nonHost.length < minPlayers) {
+        socket.emit('error', { message: `Butuh minimal ${minPlayers} pemain lain untuk memulai` });
+      } else {
+        socket.emit('error', { message: 'Semua pemain harus siap terlebih dahulu' });
+      }
+      return;
+    }
     room.setIo(io);
     await room.startGame();
   });

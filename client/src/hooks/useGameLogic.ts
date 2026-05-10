@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { getSocket } from '../lib/socket';
 
 export interface Player {
@@ -55,6 +55,9 @@ export const useGameLogic = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSocketConnected, setIsSocketConnected] = useState(false);
 
+  // flag supaya event dari server tidak overwrite state setelah user keluar
+  const leavingRef = useRef(false);
+
   useEffect(() => {
     const socket = getSocket();
     socket.connect();
@@ -71,13 +74,14 @@ export const useGameLogic = () => {
       maxPlayers?: number | null;
       hostIsSpectator?: boolean;
     }) => {
+      // abaikan kalau user sudah klik keluar
+      if (leavingRef.current) return;
       setGameState(prev => ({
         ...prev,
         roomId:  data.roomId,
         status:  data.status,
         players: data.players,
         hostId:  data.hostId ?? prev.hostId,
-        // update setting kalau ada dari server
         maxLevel: data.maxLevel ?? prev.maxLevel,
         maxPlayers: data.maxPlayers !== undefined ? data.maxPlayers : prev.maxPlayers,
         hostIsSpectator: data.hostIsSpectator ?? prev.hostIsSpectator,
@@ -127,6 +131,7 @@ export const useGameLogic = () => {
     };
 
     const onRoomDeleted = () => {
+      leavingRef.current = false;
       setGameState(prev => ({ ...prev, roomId: null, hostId: null, status: 'lobby', players: [] }));
       setError('Room telah dibubarkan oleh Host');
     };
@@ -166,6 +171,8 @@ export const useGameLogic = () => {
 
   const joinRoom = (roomId: string, playerName: string, callback?: (ok: boolean) => void) => {
     setError(null);
+    // reset flag leaving karena user masuk room baru
+    leavingRef.current = false;
     getSocket().emit('join_room', { roomId, playerName }, (res: { error?: string }) => {
       if (res.error) {
         setError(res.error);
@@ -191,17 +198,32 @@ export const useGameLogic = () => {
     }
   };
 
+  // langsung reset state ke awal dan set flag supaya event server tidak overwrite
   const leaveRoom = () => {
     if (gameState.roomId) {
+      leavingRef.current = true;
       getSocket().emit('leave_room', { roomId: gameState.roomId });
-      setGameState(prev => ({ ...prev, roomId: null, hostId: null, status: 'lobby', players: [] }));
+      setGameState({
+        roomId: null, hostId: null, status: 'lobby', players: [],
+        currentLevel: 1, gridSize: 2, phase: 'memorize',
+        timeRemaining: 0, memorizeTime: 8, answerTime: 20,
+        itemsToMemorize: [], countdown: 3, finalLeaderboard: [],
+        maxLevel: 10, maxPlayers: null, hostIsSpectator: false,
+      });
     }
   };
 
   const deleteRoom = () => {
     if (gameState.roomId) {
+      leavingRef.current = true;
       getSocket().emit('delete_room', { roomId: gameState.roomId });
-      setGameState(prev => ({ ...prev, roomId: null, hostId: null, status: 'lobby', players: [] }));
+      setGameState({
+        roomId: null, hostId: null, status: 'lobby', players: [],
+        currentLevel: 1, gridSize: 2, phase: 'memorize',
+        timeRemaining: 0, memorizeTime: 8, answerTime: 20,
+        itemsToMemorize: [], countdown: 3, finalLeaderboard: [],
+        maxLevel: 10, maxPlayers: null, hostIsSpectator: false,
+      });
     }
   };
 

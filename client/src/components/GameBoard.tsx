@@ -96,12 +96,17 @@ const DroppablePool = ({ children }: { children: React.ReactNode }) => {
 };
 
 // ─── Leaderboard ────────────────────────────────────────────────────────────
-const Leaderboard = ({ players, myId }: { players: { id: string; name: string; score: number }[]; myId: string }) => {
-  const sorted = [...players].sort((a, b) => b.score - a.score);
+// hostId dan hostIsSpectator diperlukan supaya host spectate tidak ditampilkan
+const Leaderboard = ({ players, myId, hostId, hostIsSpectator }: { players: { id: string; name: string; score: number }[]; myId: string; hostId?: string | null; hostIsSpectator?: boolean }) => {
+  // filter host spectator dari leaderboard
+  const filtered = hostIsSpectator && hostId
+    ? players.filter(p => p.id !== hostId)
+    : players;
+  const sorted = [...filtered].sort((a, b) => b.score - a.score);
   const medals = ['🥇', '🥈', '🥉'];
   return (
     <div className="glass-card rounded-3xl p-5 h-fit sticky top-4 space-y-4">
-      <h3 className="text-base font-black text-white">📊 Papan Skor</h3>
+      <h3 className="text-base font-black text-white">Papan Skor</h3>
       <motion.div layout className="space-y-2">
         <AnimatePresence initial={false}>
           {sorted.map((p, i) => {
@@ -169,8 +174,12 @@ interface GameBoardProps {
 }
 
 export const GameBoard = ({ gameState, submitAnswer, leaveRoom }: GameBoardProps) => {
-  const isMemorize = gameState.phase === 'memorize';
   const myId = getSocket().id ?? '';
+
+  // cek apakah saya host yang sedang spectate
+  const isHostSpectator = gameState.hostIsSpectator && myId === gameState.hostId;
+  // host spectator selalu lihat grid mode hafal (view-only)
+  const isMemorize = isHostSpectator ? true : gameState.phase === 'memorize';
 
   const [placedItems, setPlacedItems] = useState<PlacedItem[]>([]);
   const [poolItems, setPoolItems] = useState<{ id: string; iconType: string }[]>([]);
@@ -238,8 +247,9 @@ export const GameBoard = ({ gameState, submitAnswer, leaveRoom }: GameBoardProps
     };
   }, []);
 
-  // Auto-submit on timer expiry
+  // Auto-submit saat waktu habis, tapi host spectator tidak perlu
   useEffect(() => {
+    if (isHostSpectator) return;
     if (gameState.phase === 'answer' && gameState.timeRemaining <= 0 && !submitted) {
       setSubmitted(true);
       submitAnswer(placedItems, 0);
@@ -306,7 +316,11 @@ export const GameBoard = ({ gameState, submitAnswer, leaveRoom }: GameBoardProps
 
   // ── Game Over ──────────────────────────────────────────────────────────────
   if (gameState.status === 'ended') {
-    const sorted = [...gameState.finalLeaderboard].sort((a, b) => b.score - a.score);
+    // filter host spectator dari leaderboard akhir
+    const leaderboard = gameState.hostIsSpectator && gameState.hostId
+      ? gameState.finalLeaderboard.filter(p => p.id !== gameState.hostId)
+      : gameState.finalLeaderboard;
+    const sorted = [...leaderboard].sort((a, b) => b.score - a.score);
     const winner = sorted[0];
     const isWinner = winner?.id === myId;
     return (
@@ -326,7 +340,7 @@ export const GameBoard = ({ gameState, submitAnswer, leaveRoom }: GameBoardProps
             {isWinner ? '🏆' : '🎮'}
           </motion.div>
           <h2 className="text-3xl md:text-4xl font-black text-white">
-            {isWinner ? 'Kamu Menang!' : 'Game Selesai!'}
+            {isHostSpectator ? 'Game Selesai!' : isWinner ? 'Kamu Menang!' : 'Game Selesai!'}
           </h2>
           <p className="text-sm font-bold" style={{ color: 'var(--txt-muted)' }}>Peringkat Akhir</p>
         </div>
@@ -361,7 +375,7 @@ export const GameBoard = ({ gameState, submitAnswer, leaveRoom }: GameBoardProps
         </div>
 
         <button onClick={() => window.location.reload()} className="btn-3d btn-purple w-full py-3 md:py-4 text-sm md:text-base">
-          🔁 Main Lagi
+          Main Lagi
         </button>
       </motion.div>
     );
@@ -515,9 +529,9 @@ export const GameBoard = ({ gameState, submitAnswer, leaveRoom }: GameBoardProps
             </div>
           </div>
 
-          {/* Pool — answer phase only */}
+          {/* Pool — answer phase only, tapi host spectator tidak lihat pool */}
           <AnimatePresence>
-            {!isMemorize && (
+            {!isMemorize && !isHostSpectator && (
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -539,7 +553,7 @@ export const GameBoard = ({ gameState, submitAnswer, leaveRoom }: GameBoardProps
                     className={`btn-3d px-5 py-2.5 text-sm ${submitted ? '' : 'btn-purple'}`}
                     style={submitted ? { background: 'rgba(255,255,255,0.05)', color: 'var(--txt-faint)', borderRadius: 12, fontWeight: 800, border: '1.5px solid rgba(255,255,255,0.08)', cursor: 'not-allowed' } : {}}
                   >
-                    {submitted ? '✓ Dikirim!' : '🚀 Kirim Jawaban'}
+                    {submitted ? 'Dikirim' : 'Kirim Jawaban'}
                   </motion.button>
                 </div>
 
@@ -562,13 +576,22 @@ export const GameBoard = ({ gameState, submitAnswer, leaveRoom }: GameBoardProps
                       className="w-full text-center text-sm font-bold py-4"
                       style={{ color: '#6ee7b7' }}
                     >
-                      🎉 Semua sudah ditempatkan — kirim jawaban!
+                      Semua sudah ditempatkan, kirim jawaban!
                     </motion.p>
                   )}
                 </DroppablePool>
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Banner info untuk host spectator saat fase jawab */}
+          {isHostSpectator && gameState.phase === 'answer' && (
+            <div className="glass-card rounded-2xl p-4 text-center">
+              <p className="text-sm font-bold" style={{ color: 'var(--clr-cyan-lt)' }}>
+                Kamu sedang mengawasi &mdash; pemain lain sedang menjawab
+              </p>
+            </div>
+          )}
           {/* DragOverlay — renders emoji that follows the cursor */}
           <DragOverlay dropAnimation={{ duration: 200, easing: 'ease' }}>
             {activeDragId ? (() => {
@@ -581,8 +604,8 @@ export const GameBoard = ({ gameState, submitAnswer, leaveRoom }: GameBoardProps
         </DndContext>
       </div>
 
-      {/* Leaderboard */}
-      <Leaderboard players={gameState.players} myId={myId} />
+      {/* Leaderboard, filter host spectator */}
+      <Leaderboard players={gameState.players} myId={myId} hostId={gameState.hostId} hostIsSpectator={gameState.hostIsSpectator} />
     </div>
   );
 };

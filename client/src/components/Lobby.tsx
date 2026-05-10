@@ -46,7 +46,9 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
 
   const nonHostPlayers = gameState.players.filter(p => p.id !== gameState.hostId);
   const readyCount = nonHostPlayers.filter(p => p.isReady).length;
-  const canStart = nonHostPlayers.length > 0 && readyCount === nonHostPlayers.length;
+  // kalau host spectate, minimal 2 pemain supaya ga main sendirian (sama kayak server)
+  const minPlayers = gameState.hostIsSpectator ? 2 : 1;
+  const canStart = nonHostPlayers.length >= minPlayers && readyCount === nonHostPlayers.length;
 
   // label singkat batas level untuk ditampilkan di info room
   const levelLabel = `s/d Level ${gameState.maxLevel}`;
