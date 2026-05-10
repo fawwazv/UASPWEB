@@ -177,14 +177,6 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
                           Kamu
                         </span>
                       )}
-                      {isPlayerHost && (
-                        <span
-                          className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
-                          style={{ background: 'rgba(245,158,11,0.2)', border: '1px solid rgba(245,158,11,0.5)', color: '#fcd34d' }}
-                        >
-                          Host
-                        </span>
-                      )}
                       {/* badge spectator kalau host pilih mode spectate */}
                       {isPlayerHost && gameState.hostIsSpectator && (
                         <span
@@ -259,6 +251,11 @@ export const Lobby = ({ gameState, toggleReady, startGame, leaveRoom, deleteRoom
             {!canStart && nonHostPlayers.length === 0 && (
               <p className="text-center text-xs font-bold" style={{ color: 'var(--txt-faint)' }}>
                 Butuh minimal 1 pemain lain untuk memulai
+              </p>
+            )}
+            {!canStart && gameState.hostIsSpectator && nonHostPlayers.length === 1 && (
+              <p className="text-center text-xs font-bold" style={{ color: '#f87171' }}>
+                Mode spectate membutuhkan minimal 2 pemain untuk bermain
               </p>
             )}
           </div>
